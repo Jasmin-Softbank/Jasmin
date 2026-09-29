@@ -1,0 +1,34 @@
+# Agent API layer: instructions and settings for every agent role live here.
+# Agents only read. Files they want to create or change come back inside the JSON output;
+# run_agent.py checks each path against `writable` and writes it. The L0 gate checks again.
+version: 0
+
+providers:
+  claude:            # Claude Agent SDK (Python), drives Claude Code headless
+    model: sonnet
+    max_turns: 40
+    max_budget_usd: 2.0
+  codex:             # Codex CLI `codex exec`, read-only sandbox, no network, no approvals
+    model: null      # null = the account default
+    sandbox: read-only
+
+instructions_prefix: agents/SAFETY.md
+read_deny: ["**/.env*", "**/*.pem", "**/*.key", "**/id_rsa*", "**/id_ed25519*"]
+
+roles:
+  adapter:
+    instructions: agents/adapter/INSTRUCTION.md
+    schema: schemas/report.schema.json
+    writable: contract/paths.yaml        # uses its `writable` and `protected` lists
+  fixer:
+    instructions: agents/fixer/INSTRUCTION.md
+    schema: schemas/report.schema.json
+    writable: contract/paths.yaml
+  change:
+    instructions: agents/change/INSTRUCTION.md
+    schema: schemas/change.schema.json
+    writable: [".jasmin/jasmin.yaml"]
+  diagnoser:
+    instructions: agents/diagnoser/INSTRUCTION.md
+    schema: schemas/diagnosis.schema.json
+    writable: []

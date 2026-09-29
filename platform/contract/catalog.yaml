@@ -1,0 +1,44 @@
+# What the platform offers. The change agent maps requests onto this; anything else is "unsupported".
+version: 0
+
+sizes: [S, M, L]          # values in stack-contract.md §4
+replicas: {min: 1, max: 3}
+
+resources:
+  postgres:
+    sizes: [small]
+    injects_secret: DATABASE_URL
+    guards: {deletion_requires_confirmation: true, backups_days: 7}
+    providers:            # same contract, provider-specific implementation
+      aws: cnpg-small     # in-cluster CloudNativePG, EBS gp3 volume, backups to S3
+      onprem: cnpg-small  # same manifests, local-path volume, backups to MinIO (later)
+    roles: [owner (migrations only), "<app>_rw (runtime, DATABASE_URL)", "<app>_ro (diagnostics)"]
+    migration_secret: MIGRATION_DATABASE_URL
+  bucket:
+    public_read: false
+    injects_secret: BUCKET_URL
+    providers:
+      aws: s3-private
+      onprem: minio       # later
+
+env:
+  max_keys: 50
+  max_value_bytes: 1024
+secrets:
+  max_keys: 20            # values arrive through the secure channel, never through chat or files
+
+removal:                  # a resource dropped from jasmin.yaml
+  default: detach_and_retain
+  retain_days: 7
+  delete: destructive_change_only   # server-side confirmation + snapshot first
+
+domain:
+  host: "<app>-<random6>.<platform-domain>"   # stable across changes
+  custom_domain: unsupported                   # MVP
+
+unsupported_mvp:
+  - custom_domain
+  - gpu
+  - region_change
+  - stateful_volumes
+  - privileged_or_root

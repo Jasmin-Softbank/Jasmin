@@ -1,0 +1,5 @@
+docs/raw/
+docs/wiki/
+docs/research/
+.DS_Store
+__pycache__/

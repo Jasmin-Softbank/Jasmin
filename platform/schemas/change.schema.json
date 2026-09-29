@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Change proposal",
+  "description": "Advisory. The pipeline renders the new spec, runs terraform plan, and sets confirmation from the plan as well.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "user_summary", "spec_changes", "impact", "needs_confirmation", "unsupported"],
+  "properties": {
+    "status": { "enum": ["proposed", "clarify", "unsupported"] },
+    "user_summary": { "type": "string", "maxLength": 600, "description": "In the user's language." },
+    "question": { "type": "string", "maxLength": 300, "description": "Required when status is clarify: one concrete question with options." },
+    "spec_changes": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pointer", "from", "to"],
+        "properties": {
+          "pointer": { "type": "string", "description": "JSON Pointer into jasmin.yaml, e.g. /services/0/size" },
+          "from": {},
+          "to": {}
+        }
+      }
+    },
+    "impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["restart", "data_risk", "cost_class", "downtime"],
+      "properties": {
+        "restart": { "type": "boolean" },
+        "data_risk": { "enum": ["none", "possible", "certain"] },
+        "cost_class": { "enum": ["down", "same", "up"] },
+        "downtime": { "enum": ["none", "brief", "yes"] }
+      }
+    },
+    "needs_confirmation": { "type": "boolean" },
+    "code_change_needed": { "type": "string", "maxLength": 400, "description": "What the application code must change for this request to work; the user re-uploads the folder with the change." },
+    "unsupported": { "type": "array", "maxItems": 10, "items": { "type": "string", "maxLength": 200 } }
+  },
+  "allOf": [
+    { "if": { "properties": { "status": { "const": "clarify" } } }, "then": { "required": ["question"] } }
+  ]
+}

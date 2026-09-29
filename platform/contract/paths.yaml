@@ -1,0 +1,57 @@
+# Read by the L0 gate and shown to agents. gitignore-style patterns, relative to the repository root.
+version: 0
+
+# Exclusive: an attempt that touches any other path fails at L0.
+writable:
+  - Dockerfile
+  - "*.Dockerfile"
+  - "**/Dockerfile"
+  - .dockerignore
+  - "**/.dockerignore"
+  - railpack.json
+  - "**/railpack.json"
+  - .jasmin/**
+
+# Never edit, rename or delete. Listed separately so the gate can give a precise error.
+protected:
+  - .github/**
+  - .gitlab-ci.yml
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/__tests__/**"
+  - "**/*_test.*"
+  - "**/*.test.*"
+  - "**/*.spec.*"
+  - "**/test_*.py"
+  - "**/package-lock.json"
+  - "**/pnpm-lock.yaml"
+  - "**/yarn.lock"
+  - "**/uv.lock"
+  - "**/poetry.lock"
+  - "**/package.json"        # D1 pending
+  - "**/pyproject.toml"      # D1 pending
+  - "**/requirements*.txt"   # D1 pending
+  - CLAUDE.md
+  - AGENTS.md
+  - .claude/**
+  - .cursor/**
+  - .cursorrules
+
+limits:
+  max_files_changed: 8
+  max_patch_bytes: 20000
+  delete_files: false
+  binary_files: false
+  symlinks: false
+
+# Regular expressions matched against added lines of the patch.
+forbidden_patterns:
+  - '\|\|\s*true\b'
+  - '\bexit\s+0\b'
+  - '^\s*HEALTHCHECK\b'
+  - '(pytest\.skip|unittest\.skip|it\.skip|describe\.skip|xit\(|@Disabled)'
+  - '--no-verify'
+  - 'trivyignore'
+  - '(curl|wget)[^|\n]*\|\s*(ba)?sh'
+  - 'chmod\s+(-R\s+)?777'
+  - '^\s*USER\s+(root|0)\s*$'
