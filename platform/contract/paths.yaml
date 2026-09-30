@@ -8,8 +8,6 @@ writable:
   - "**/Dockerfile"
   - .dockerignore
   - "**/.dockerignore"
-  - railpack.json
-  - "**/railpack.json"
   - .jasmin/**
 
 # Never edit, rename or delete. Listed separately so the gate can give a precise error.

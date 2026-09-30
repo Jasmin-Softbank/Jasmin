@@ -9,6 +9,7 @@ write_files:
       gitops_repo: ${gitops_repo}
       gitops_key_param: /${name}/gitops-deploy-key
       ghcr_token_param: /${name}/ghcr-read-token
+packages: [python3-pip]   # ansible-core via pip (cloud-init ansible module)
 ansible:
   install_method: pip
   package_name: ansible-core==2.21.4

@@ -84,7 +84,6 @@ def inventory(root, files, total):
         "dockerfiles": [f for f in files if Path(f).name == "Dockerfile" or f.endswith(".Dockerfile")],
         "python_entrypoints": entry[:20],
         "port_hints": [p for p, _ in ports.most_common(8)],
-        "railpack": None,  # ponytail: railpack prepare not wired locally yet; CI runs it
     }
 
 

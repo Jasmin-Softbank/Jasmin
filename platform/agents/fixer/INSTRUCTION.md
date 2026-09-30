@@ -29,7 +29,7 @@ One gate step failed. Change the writable files so that this failure's root caus
 | F1 dependencies | missing system library, wrong install command, lockfile not used | add OS packages in the build stage, use the lockfile install command. Never edit manifests. One attempt, then `give_up`. |
 | F2 build context | wrong `COPY` path, `.dockerignore` hides a needed file, wrong context | fix paths, context or ignore rules |
 | F4 start, port, health | binds 127.0.0.1, wrong port, health path 404/5xx, slow start, missing runtime file | fix `CMD` flags or env, the spec port, a health path that exists in code, copy the missing file from the build stage |
-| F5 spec or policy | schema error, conftest rule | follow the rule message; change the spec or Dockerfile, never the rule |
+| F5 spec or policy | schema error, gate L1 rule | follow the rule message; change the spec or Dockerfile, never the rule |
 | F6 vulnerability | CRITICAL with a fixed version | newer patch-level base image or package in the build; never ignore |
 | F9 infrastructure plan | the spec asks for something the catalog or policy rejects | adjust the spec within the catalog; if the user explicitly asked for it, `give_up` and explain |
 

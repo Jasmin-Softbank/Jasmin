@@ -53,15 +53,15 @@
 | FR-IN-1 | `upload_create`가 presigned URL(10분), 제외 목록, 최대 크기(100 MB, 2만 파일)를 준다. 파일 내용은 MCP로 받지 않는다 | P0 |
 | FR-IN-2 | 경로 탈출·심볼릭 링크·크기 검사, 비밀 스캔(gitleaks)에서 걸리면 거부 | P0 |
 | FR-IN-3 | 작업 사본에서 다른 에이전트용 지침·설정 파일(CLAUDE.md, AGENTS.md, `.claude/`, `.cursor*`, `.github/copilot-*`)을 제거 | P0 |
-| FR-IN-4 | 인벤토리(`ir.json`): 언어·매니페스트·락파일·프레임워크·포트 후보·기존 Dockerfile·Railpack 결과 | P0 |
+| FR-IN-4 | 인벤토리(`ir.json`): 언어·매니페스트·락파일·프레임워크·포트 후보·기존 Dockerfile | P0 |
 | FR-IN-5 | 플랫폼 조직에 앱별 private 레포 생성, import 커밋 | P0 |
 
 **적응·수정 루프**
 
 | ID | 요구 | P |
 |---|---|---|
-| FR-AD-1 | adapter가 Dockerfile류와 `jasmin.yaml`만 제안한다. 규칙 표나 Railpack으로 되면 LLM 0회 | P0 |
-| FR-AD-2 | 게이트 L0(경로·패치 정책) → L1(정적: 스키마·conftest·kubeconform·hadolint) → L2(빌드) → L3(기동·플랫폼 프로브·동작) → L4(Trivy·크기·비밀·비용) | P0 |
+| FR-AD-1 | adapter가 Dockerfile류와 `jasmin.yaml`만 제안한다. 규칙 기반 어댑터(우리 코드)로 되면 LLM 0회 | P0 |
+| FR-AD-2 | 게이트 L0(경로·패치 정책) → L1(정적: 스키마·Dockerfile 규칙·렌더 검사, `gate.py`) → L2(빌드) → L3(기동·플랫폼 프로브·동작) → L4(Trivy·크기·비밀(gitleaks)·비용) | P0 |
 | FR-AD-3 | 분류기 F1–F9. F7(앱 결함)·F8(일시 장애)은 LLM을 부르지 않는다 | P0 |
 | FR-AD-4 | fixer 최대 3회, 같은 실패 서명 2회면 중단, `give_up` 채널 | P0 |
 | FR-AD-5 | 에이전트는 읽기만 한다. 파일은 JSON 출력으로 받고 실행기가 경로 검사 후 쓴다 | P0 |
@@ -112,26 +112,50 @@
 | 층 | 소유 | 하는 일 |
 |---|---|---|
 | 클라우드 리소스 | **Terraform** | VPC·SG·EC2·EBS·IAM(OIDC 역할)·Route 53·ACM·(ALB)·S3(DB 백업)·Secrets Manager 항목·예산. user-data(cloud-init) 렌더링까지. `helm`·`kubernetes` provider는 쓰지 않는다 |
-| 노드 | **Ansible** (`ansible-pull`, SSH 없음) | cloud-init `ansible` 모듈로 첫 부팅 때 실행, 이후 systemd timer로 드리프트 교정. 하드닝, k3s 설치(버전·sha256 고정), k3s `manifests/`에 Cilium·Argo CD·루트 Application 배치. 기존 `install.sh`는 태스크 하나로 감싸고 폴백으로 남긴다 |
-| 클러스터 안 | **Argo CD** | Cilium과 Argo CD 자신을 뺀 전부(cert-manager, 시크릿, CNPG, 관측성, 정책, 테넌트 앱) |
+| 노드 | **Ansible** (`ansible-pull`, SSH 없음) | cloud-init `ansible` 모듈로 첫 부팅 때 실행, 이후 systemd timer로 드리프트 교정. 하드닝, k3s 설치(버전·sha256 고정), k3s `manifests/`에 Argo CD·루트 Application 배치(Cilium은 D12). 기존 `install.sh`는 태스크 하나로 감싸고 폴백으로 남긴다 |
+| 클러스터 안 | **Argo CD** | k3s 번들과 Argo CD 자신을 뺀 전부(시크릿, CNPG, 관측성, 테넌트 앱, 도메인 구매 뒤 cert-manager) |
 | 앱 산출물 | 에이전트 제안 + 렌더러 | Dockerfile류와 `jasmin.yaml` → 매니페스트·tfvars(기본값 적용) |
 
 ## 7. 기술 스택 (고정 버전)
 
-규칙: 인프라·관측 구성 요소는 릴리스 7일 미만이면 직전 버전, 차트 버전 + 이미지 digest로 고정. 에이전트 CLI는 배포사의 `stable` 태그. 바이너리는 sha256 검증. 버전은 2026-09-30에 GitHub·레지스트리 API로 확인했다.
+**의존성 원칙.** RAILSHOT은 self-managed k8s를 내세우므로 제품이 직접 설치·운영하는 것에만 의존한다.
+
+1. k3s 번들(Traefik, CoreDNS, local-path, metrics-server, Flannel, NetworkPolicy 컨트롤러)로 되면 따로 올리지 않는다.
+2. 우리 코드(`gate.py`·`render.py`, Python 표준 라이브러리 + pyyaml·jsonschema) 몇 줄로 되면 도구를 들이지 않는다.
+3. 개발 PC 전용 도구와 서드파티 CI 액션에 기대지 않는다. 판정은 우리 CI 러너에서 하고, 액션은 GitHub 1st-party(`actions/*`)만 SHA로 고정한다.
+4. 외부 SaaS는 끝낼 조건을 적은 한시 예외로만 쓴다.
+
+점검 결과(2026-09-30):
+
+| 판정 | 대상 | 이유 |
+|---|---|---|
+| 제거 | colima | 개발 PC 도구. 로컬 L2–L4는 Docker가 있을 때만 돌리고, 판정은 CI |
+| 제거 | Railpack | 빌드는 Dockerfile 하나로. adapter가 규칙 → LLM 순으로 쓴다 |
+| 제거 | conftest·kubeconform·hadolint | `gate.py` L1 규칙과 렌더러 검사가 같은 일을 한다. 클러스터 쪽은 VAP(k8s 내장) |
+| 제거 | Sealed Secrets | ESO(SSM 파라미터 + Password 생성기)로 충분 |
+| 제거 | pgloader | 표준 `sqlite3` + `psql` 스크립트 |
+| 제거 | setup-uv·docker/login-action·docker/setup-buildx-action·otel-cicd-action | 러너 기본 `docker`·`python`, `actions/setup-python`, evidence로 대체 |
+| P1로 | OTel Collector·Loki·Tempo | MVP 관측은 Prometheus·Grafana, 진단 로그는 k8s API |
+| 결정 대기 | Cilium (D12) | 팀 화이트보드 안. 렌더러의 NetworkPolicy는 표준 API라 k3s 번들로도 강제된다. Cilium은 Hubble·L7 정책이 필요할 때 |
+| 유지 | cert-manager (도메인 구매 뒤) | Traefik ACME는 Gateway API 리스너에 붙지 않는다(리스너는 Secret 참조만). DNS-01 와일드카드 |
+| 한시 예외 | sslip.io | 도메인 구매(D8) 전 HTTP PoC까지만 |
+
+버전 규칙: 인프라·관측 구성 요소는 릴리스 7일 미만이면 직전 버전, 차트 버전 + 이미지 digest로 고정. 에이전트 CLI는 배포사의 `stable` 태그. 바이너리는 sha256 검증. 버전은 2026-09-30에 GitHub·레지스트리 API로 확인했다.
 
 | 층 | 구성 요소 | 고정 |
 |---|---|---|
 | IaC | Terraform / AWS provider | 1.16.4 (`~> 1.16.0`) / 6.66.0 (`~> 6.66.0`, lock 파일 커밋) |
 | 노드 구성 | ansible-core | 2.21.4 (pip, Python 3.12+) |
-| 클러스터 | k3s | **v1.36.4+k3s1** (stable 채널). 1.37은 Cilium·Argo CD·cert-manager·CNPG·ESO 공통 지원 범위 밖 |
-| CNI | Cilium | 1.20.2 (K8s 1.33–1.36) |
-| 진입 | Traefik | k3s 번들 v3.7.8 (따로 올리지 않음) |
+| 클러스터 | k3s | **v1.36.4+k3s1** (stable 채널). 1.37은 Argo CD·CNPG·ESO 공통 지원 범위 밖 |
+| k3s 번들 | Traefik (Gateway API 켬) / CoreDNS / local-path / metrics-server / Flannel + NetworkPolicy 컨트롤러 | k3s 버전을 따름 (Traefik v3.7.8). 따로 올리지 않음 |
+| CNI | Cilium | 1.20.2 (K8s 1.33–1.36). **D12 결정 대기**, 채택 시 k3s `--flannel-backend=none` |
 | CD | Argo CD / Argo Rollouts | 3.5.3 (차트 10.9.4) / §8 |
-| 인증서·시크릿 | cert-manager / ESO / Sealed Secrets | 1.21.2 / 2.11.0 (월 1회 갱신 필요) / 0.40.0 |
+| 시크릿·인증서 | ESO / cert-manager | 2.11.0 (월 1회 갱신 필요) / 1.21.2 (도메인 구매 뒤) |
 | DB | CloudNativePG (AWS·온프렘 공통, RDS 쓰지 않음) / PostgreSQL / 백업 플러그인 | 1.30.1 / 17 (`ghcr.io/cloudnative-pg/postgresql:17`, digest) / Barman Cloud v0.15.0 |
-| 게이트 | Trivy / conftest / kubeconform / gitleaks / hadolint / buildx / Railpack | 0.74.0 / 0.70.1 / 0.8.0 / 8.30.1 / 2.15.1 / 0.37.1 / 0.40.1 |
-| 관측 | OTel Collector (`otelcol-k8s`) / Prometheus / Loki / Tempo / Grafana | 0.161.0 / 3.15.0 / 3.7.8 / 3.0.3 / 13.2.3 (차트는 grafana-community) |
+| 게이트 | `gate.py`(우리 코드) + Trivy / gitleaks / docker buildx | – / 0.74.0 / 8.30.1 / 러너 이미지 기본 |
+| 플랫폼 코드 | Python / pyyaml / jsonschema | 3.13+ (`PurePath.full_match`, CI는 `actions/setup-python`) / pip 최신 안정판, 제출 전 고정 |
+| 관측 (MVP) | Prometheus / Grafana | 3.15.0 / 13.2.3 (차트는 grafana-community) |
+| 관측 (P1) | OTel Collector (`otelcol-k8s`) / Loki / Tempo | 0.161.0 / 3.7.8 / 3.0.3 |
 | 에이전트 | claude-agent-sdk (Python, CLI 번들) / Claude Code / Codex CLI | `claude-agent-sdk[otel]==0.2.158` (CLI 2.1.280) / 2.1.280 (stable) / 0.159.1 |
 | 프로토콜 | MCP TS SDK / A2A JS SDK / agentgateway | `@modelcontextprotocol/server` 2.2.0 / 1.3.0 (P2) / 1.5.0 (P2) |
 
@@ -162,27 +186,25 @@ Argo CD로 고정한다. 3.5.3은 최근 1년 보안 권고 6건이 모두 고�
 - 파괴적 변경 보호: DB·PVC·DB 자격 Secret에 `Prune=confirm`, `Delete=false`. 서버 확인이 끝나면 deployer가 `argocd.argoproj.io/deletion-approved` 주석을 커밋한다.
 - 같은 커밋에서 실패한 동기화는 Argo가 자동으로 다시 시도하지 않는다. deployer가 실패를 감지해 LKG를 커밋한다(`argocd app rollback`은 자동 동기화 앱에서 쓸 수 없다).
 - Notifications로 동기화·헬스 이벤트를 evidence와 관측으로 보낸다.
-- 테넌트 격리: AppProject `t-<tenant>`(sourceRepos·destinations·kind 화이트리스트). Rollouts 컨트롤러가 클러스터 전체 HTTPRoute 수정 권한을 받으므로, 남의 라우트 가중치를 바꾸지 못하게 conftest·VAP 규칙을 둔다. 트래픽 분할은 Traefik 전용 CRD가 아니라 Gateway API 플러그인으로 한다.
+- 테넌트 격리: AppProject `t-<tenant>`(sourceRepos·destinations·kind 화이트리스트). Rollouts 컨트롤러가 클러스터 전체 HTTPRoute 수정 권한을 받으므로, 남의 라우트 가중치를 바꾸지 못하게 렌더러 검사와 VAP(k8s 내장) 규칙을 둔다. 트래픽 분할은 Traefik 전용 CRD가 아니라 Gateway API 플러그인으로 한다.
 - 성숙 조직(Google SRE 카나리, Netflix Kayenta, Uber, Meta, 토스뱅크 사례)의 방향도 같다: 카나리 판정은 지표와 규칙이 하고, AI는 배포 전 위험 평가와 사후 설명에만 쓴다.
 
 ## 9. 관측성
 
-**MVP 구성** (k3s 단일 노드, 추정 메모리 0.7–1.4 GiB, 0일차 실측으로 교체):
+**MVP 구성** (k3s 단일 노드, 메모리는 0일차 실측):
 
 ```
-앱 stdout ─filelog─▶ otelcol-k8s ─otlphttp─▶ Loki (단일 바이너리, 7일)
-앱 OTLP(선택) ─────▶ otelcol-k8s ─otlphttp─▶ Tempo (단일 바이너리)
-                                  └────────▶ Prometheus (OTLP 수신, 7일)
-Traefik·Argo CD·Hubble·수집기 ◀─scrape── Prometheus
-공개 URL ◀─httpcheck── otelcol-k8s (합성 가용성)
-Grafana 13: 데이터소스 3개, 대시보드 "app"(tenant, app 변수)
+Traefik·Argo CD·CNPG·kubelet ◀─scrape── Prometheus (7일)
+Grafana 13: 데이터소스 Prometheus, 대시보드 "app"(tenant, app 변수)
+앱 로그·이벤트 ◀─k8s API── diagnoser 증거 수집(결정론, 발췌는 마스킹)
+공개 URL 가용성 ◀── 배포 파이프라인 스모크 + Traefik 메트릭
 ```
 
-- 수집기에서 네임스페이스 라벨로 `tenant`·`app`을 붙이고, `user.email`과 프롬프트 계열 속성을 지운다.
-- 온프렘은 수집기만 두고 AWS 쪽으로 OTLP/HTTPS 푸시한다.
-- **사용자에게**: `status`에 health 블록(가용성, 분당 요청, 5xx 비율, p50·p95 지연, 재시작, CPU·메모리, 마지막 배포와 time-to-URL, verdict). 앱을 고치지 않고 Traefik 메트릭과 수집기 수신기만으로 채운다. Grafana는 운영자 인증 뒤에 둔다.
-- **파이프라인**: GitHub Actions 트레이스는 `otel-cicd-action`(MVP). CI/CD 규약은 Release Candidate 단계다. DORA 5지표는 Deployments API와 evidence에서 계산하고, 리드 타임은 time-to-URL로 다시 정의한다.
-- **에이전트**: OTel GenAI 규약은 아직 Development 단계다(버전 고정 불가, 토큰 메트릭 이름 `gen_ai.client.inference.usage.*`).
+- Prometheus relabel로 네임스페이스에서 `tenant`·`app` 라벨을 붙인다.
+- P1: OTel Collector → Loki(로그 7일)·Tempo(트레이스). 온프렘 연동도 이때 수집기 푸시로 한다.
+- **사용자에게**: `status`에 health 블록(가용성, 분당 요청, 5xx 비율, p50·p95 지연, 재시작, CPU·메모리, 마지막 배포와 time-to-URL, verdict). 앱을 고치지 않고 Traefik 메트릭과 k8s API만으로 채운다. Grafana는 운영자 인증 뒤에 둔다.
+- **파이프라인**: MVP는 `evidence.json`과 GitHub Deployments API. Actions 트레이스는 서드파티 액션이 필요해 넣지 않는다. CI/CD 규약은 Release Candidate 단계다. DORA 5지표는 Deployments API와 evidence에서 계산하고, 리드 타임은 time-to-URL로 다시 정의한다.
+- **에이전트** (OTel 내보내기는 P1): OTel GenAI 규약은 아직 Development 단계다(버전 고정 불가, 토큰 메트릭 이름 `gen_ai.client.inference.usage.*`).
   - Claude Code 트레이스(beta)는 호출 쪽 `TRACEPARENT`를 받아 이어진다. 메트릭은 delta라 cumulative로 바꾸고, `user.email`은 지운다.
   - 에이전트 잡 안에서는 로컬 수집기가 파일로만 남기고, 다음 잡이 클러스터로 넘긴다. LLM 잡에 수집 자격을 두지 않는다.
   - Codex는 `[analytics] enabled=false`로 두고 로그·트레이스만 받는다. 기본 메트릭 전송처가 외부다.
@@ -300,9 +322,8 @@ A2A 파사드 (P2):
 | 구성 요소 CVE | P2 | 릴리스·GHSA 주간 확인(§12 스크립트) | |
 
 현재 막힌 것:
-- 로컬 Claude 미로그인
-- Codex 사용 한도(10/4 초기화)
-- Docker 데몬 무응답
+- 로컬 Claude 미로그인 (Codex는 사용 가능)
+- 로컬 Docker 데몬 무응답 (로컬 L2–L4만 영향, 판정은 CI)
 - HTTPS 시연용 도메인 미구매
 
 ## 14. 마일스톤
@@ -341,6 +362,7 @@ A2A 파사드 (P2):
 | P-D2 | `cancel(run_id)` | P2(A2A와 함께) |
 | P-D3 | A2A 파사드 해커톤 범위 | 제외. Agent Card와 매핑만 발표 |
 | P-D4 | AGENTIC STAR 연동 시연 | MCP 서버 URL 등록 |
+| D12 | CNI | k3s 번들 Flannel + NetworkPolicy로 MVP, Cilium은 P1 (의존성 원칙 1) |
 | S-D1 | Ansible 도입 | `install.sh`를 감싸는 플레이북으로 시작, install.sh는 폴백 |
 
 참고: AGENTIC STAR의 A2A는 0.3이다. 마켓플레이스판 릴리스 노트의 최신은 v2.9.0(8/21)이다. 앞선 조사에서 쓴 "v2.10.0, MCP·A2A UI 리소스"는 AWS Marketplace 제품 페이지 표기라서 릴리스 노트와 맞지 않는다.
@@ -382,7 +404,7 @@ A2A 파사드 (P2):
 | Banana (예선) | — | EKS + Kustomize + **Argo Rollouts** + HPA | — | — | — | 없음 |
 | Deplight (예선) | LLM이 Dockerfile 생성(검증 없음) | ECS circuit breaker | — | — | — | OpenAI |
 | HikariFlow (예선, 입상 없음) | — | 3사 Terraform **생성만**(배포 안 함) | — | — | 비용 추정 | Bedrock |
-| **RAILSHOT** | Dockerfile·Railpack + **LLM 수정 루프 + 결정론 게이트** | k3s + **Argo CD**(App-of-Apps·ApplicationSet) + Rollouts(선택), Terraform·Ansible | 앱별 서브도메인 + 와일드카드 TLS, 별도 등록 도메인 | OIDC·키 없음, PSS restricted, 경로 allowlist, Trivy·conftest | OTel → Prometheus·Loki·Tempo, health 블록, evidence | Claude·Codex(핵심 경로, 쓰기 0) |
+| **RAILSHOT** | Dockerfile(규칙 어댑터 → **LLM 수정 루프**) + **결정론 게이트** | k3s + **Argo CD**(App-of-Apps·ApplicationSet) + Rollouts(선택), Terraform·Ansible | 앱별 서브도메인 + 와일드카드 TLS, 별도 등록 도메인 | OIDC·키 없음, PSS restricted, 경로 allowlist, Trivy·gitleaks·게이트 규칙 | Prometheus·Grafana, health 블록, evidence (OTel·Loki·Tempo는 P1) | Claude·Codex(핵심 경로, 쓰기 0) |
 
 같은 선택(검증된 조합): k3s(Yoitang·Green·Yellow), Argo CD(Green·Yellow), Terraform(대부분), Cilium(Blue), Argo Rollouts(Banana), 앱별 서브도메인 TLS·Trivy·계정 없는 배포(Yoitang).
 

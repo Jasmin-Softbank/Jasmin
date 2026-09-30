@@ -74,7 +74,7 @@ platform/
 ## 흐름
 
 **첫 배포:** upload → intake → adapter → render → gate → (실패 시 classifier → fixer 반복) → committer → deploy
-- intake의 규칙 표나 Railpack으로 해결되면 LLM을 0회 부른다.
+- intake 다음의 규칙 기반 어댑터(우리 코드)로 해결되면 LLM을 0회 부른다.
 - 반복 한도: 최대 3회, 같은 실패 서명이 2번 나오면 중단, `give_up`이면 중단. F7(앱 코드 결함)과 F8(일시 장애)에는 LLM을 부르지 않는다.
 - 시도당 한도: `--max-turns 30`, 잡 `timeout-minutes: 10`, 비용 상한. 전체 30분 이내.
 
@@ -97,8 +97,8 @@ LLM은 Agent API로 부른다. 공급자는 두 가지이고, 지침과 설정�
 - **intake가 먼저 뺀다:** 작업 사본에서 CLAUDE.md, AGENTS.md, `.claude/`, `.cursor*`, `.github/copilot-*`를 제거한다. Codex는 AGENTS.md를 읽으므로 이 단계가 필수다.
 
 ```bash
-uv run --no-project --with pyyaml --with jsonschema --with claude-agent-sdk \
-  python platform/runner/run_agent.py adapter --provider claude|codex \
+python3 -m pip install pyyaml jsonschema claude-agent-sdk   # codex만 쓰면 claude-agent-sdk 불필요
+python3 platform/runner/run_agent.py adapter --provider claude|codex \
   --workspace "$WORK" --run "$RUN" --task "$RUN/task.md"
 python3 platform/runner/run_agent.py --self-test   # 경로 검사·스키마 변환 확인
 ```
@@ -155,5 +155,6 @@ AGENTIC STAR의 공개된 IaC 사례를 배포 전 구간으로 넓히고, 사�
 | D9 | 변경 확인 주체 | low·restart·cost는 요청자 1회 확인. 파괴적 변경과 비용 상한 초과만 서버 elicitation(또는 2인 승인) | 모든 변경에 "승인자 ≠ 요청자"(QA-7)를 걸면 1인 사용 흐름이 막힘(⑤) |
 | D10 | `plan` 도구 | `change`에 흡수. 실행은 `deploy`(첫 배포)와 `apply`뿐 | 자연어 에이전트 제품은 모두 plan 카드 → 승인 구조(⑤) |
 | D11 | spec에서 빠진 리소스 | 분리 후 7일 보존. 삭제는 별도 파괴적 변경 | Render 방식. DB·볼륨 데이터는 어느 플랫폼도 롤백하지 않음(⑤) |
+| D12 | CNI | k3s 번들 Flannel + 내장 NetworkPolicy 컨트롤러로 MVP, Cilium은 P1 | 렌더러의 NetworkPolicy는 표준 API라 번들로도 강제된다. 의존성 원칙(PRD §7) |
 
 참고로, 기본 헬스체크를 HTTP readiness로 두는 것 자체가 차별점이 될 수 있다. 조사한 PaaS 기본값은 대부분 TCP 포트 확인이거나 헬스체크가 없다(Fly는 없음, Coolify는 꺼짐)(⑤).

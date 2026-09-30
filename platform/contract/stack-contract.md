@@ -8,7 +8,6 @@ What "deployable on Jasmin" means. Agents aim at this contract, the gate enforce
 |---|---|
 | `Dockerfile`, `<service>.Dockerfile` | Container build for a service |
 | `.dockerignore` | Keeps secrets, VCS data and build junk out of the context |
-| `railpack.json` | Only when Railpack can build the service without extra steps |
 | `.jasmin/jasmin.yaml` | Workload spec (`schemas/jasmin.schema.json`) |
 
 Nothing else. Kubernetes manifests, Terraform values, DNS records and certificates are rendered by the platform. The exact path rules are in `paths.yaml`.

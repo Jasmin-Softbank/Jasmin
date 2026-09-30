@@ -131,9 +131,7 @@ def base_allowed(image, allow):
 
 
 def check_dockerfile(ws, svc, allow):
-    rel = svc["build"].get("dockerfile")
-    if not rel:
-        return []            # railpack builds are checked at L2
+    rel = svc["build"]["dockerfile"]
     ctx = ws / svc["build"].get("context", ".")
     path = ctx / rel if not (ws / rel).exists() else ws / rel
     if not path.exists():
@@ -219,9 +217,6 @@ def l2(ws, spec, run_id):
     for s in spec["services"]:
         tag = f"railshot-gate/{spec['app']}-{s['name']}:{run_id}"
         ctx = ws / s["build"].get("context", ".")
-        if s["build"].get("railpack"):
-            errs.append(f"{s['name']}: railpack build not wired in local gate yet")   # ponytail: CI step runs railpack
-            continue
         df = ws / s["build"]["dockerfile"] if (ws / s["build"]["dockerfile"]).exists() else ctx / s["build"]["dockerfile"]
         p = sh(["docker", "buildx", "build", "--platform", "linux/amd64", "--load", "-f", str(df), "-t", tag, str(ctx)], timeout=1800)
         if p.returncode:

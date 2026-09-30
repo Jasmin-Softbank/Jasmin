@@ -25,7 +25,7 @@ RAILSHOT은 이 예를 **관리형 RDS가 아니라 클러스터 안의 컨테�
 |---|---|---|
 | 운영 DB | `ghcr.io/cloudnative-pg/postgresql:17` | CNPG 오퍼랜드 이미지(공식 Postgres 기반). digest로 고정 |
 | 게이트 임시 DB | `postgres:17` (Docker 공식) | L3 전에 `migrate.command`를 시험하는 일회성 컨테이너. 운영 DB와 같은 메이저 |
-| SQLite 이전 | `ghcr.io/dimitri/pgloader:v3.6.9` | ⚠️ 마지막 릴리스가 2022년이다. 막히면 Python(sqlite3 + psycopg) 이전 스크립트로 대체 |
+| SQLite 이전 (P2) | 앱 이미지 + 우리 이전 스크립트(Python 표준 `sqlite3` → `psql`) | 외부 도구를 들이지 않는다. pgloader는 2022년 이후 릴리스가 없어 쓰지 않는다 |
 | 백업 | Barman Cloud 플러그인 v0.15.0 | 내장 `barmanObjectStore` 방식은 1.26부터 폐기 예정이라 쓰지 않는다 |
 | 마이그레이션 Job | 앱 이미지 그대로 | `jasmin.yaml`의 `migrate.command` |
 

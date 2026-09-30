@@ -1,7 +1,9 @@
 # Template for the private apps monorepo (.github/workflows/railshot-deploy.yml there).
 # One run: fix loop → build + push → render + GitOps commit → verify the public URL (revert on failure).
-# Needs: secrets ANTHROPIC_API_KEY (CI key, not a subscription token), GITOPS_TOKEN (contents:write on the GitOps repo);
-#        vars RAILSHOT_DOMAIN (e.g. 1-2-3-4.sslip.io), GITOPS_REPO (owner/name), PLATFORM_REF (commit of Jasmin).
+# Needs: secrets ANTHROPIC_API_KEY or CODEX_API_KEY (CI API keys, not subscription tokens), GITOPS_TOKEN (contents:write on the GitOps repo);
+#        vars RAILSHOT_DOMAIN (e.g. 1-2-3-4.sslip.io), GITOPS_REPO (owner/name), PLATFORM_REF (commit of Jasmin),
+#        AGENT_PROVIDER (claude | codex, default claude).
+# Only first-party actions (actions/*), pinned by SHA. Build, login and digests use the runner's own docker CLI.
 # ponytail: agent and gate share one job for the MVP; P1 splits them (agent job without Docker, gate job without the model key).
 name: railshot-deploy
 on:
@@ -32,16 +34,23 @@ jobs:
         with: {repository: Jasmin-Softbank/Jasmin, ref: "${{ vars.PLATFORM_REF }}", path: .railshot, persist-credentials: false}
       - name: Validate inputs
         run: '[[ "$TENANT" =~ ^[a-z0-9-]{1,30}$ && "$APP" =~ ^[a-z0-9-]{1,30}$ ]] || { echo "invalid tenant/app"; exit 1; }'
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: {python-version: "3.13"}
       - name: Fix loop (intake → agent → gate, at most 3 attempts)
         id: loop
         env:
+          PROVIDER: ${{ vars.AGENT_PROVIDER || 'claude' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
         run: |
           set -euo pipefail
           test -d "apps/$TENANT/$APP"
-          uv run --no-project --with pyyaml --with jsonschema --with "claude-agent-sdk==0.2.158" \
-            python .railshot/platform/loop/loop.py "apps/$TENANT/$APP" run --provider claude \
+          case "$PROVIDER" in
+            claude) pip install -q pyyaml jsonschema "claude-agent-sdk==0.2.158"; unset CODEX_API_KEY ;;
+            codex)  pip install -q pyyaml jsonschema; npm install -g -s @openai/codex@0.159.1; unset ANTHROPIC_API_KEY ;;
+            *) echo "AGENT_PROVIDER must be claude or codex"; exit 1 ;;
+          esac
+          python .railshot/platform/loop/loop.py "apps/$TENANT/$APP" run --provider "$PROVIDER" \
             && echo "passed=true" >> "$GITHUB_OUTPUT" || echo "passed=false" >> "$GITHUB_OUTPUT"
           git -C run/work diff > run/agent.patch || true
           git -C run/work ls-files --others --exclude-standard -z | xargs -0 -r tar -C run/work -cf run/new-files.tar
@@ -77,25 +86,28 @@ jobs:
           set -euo pipefail
           if [ -s run/agent.patch ]; then git apply --directory="apps/$TENANT/$APP" run/agent.patch; fi
           if [ -f run/new-files.tar ]; then tar -C "apps/$TENANT/$APP" -xf run/new-files.tar; fi
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with: {registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}"}
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Log in to GHCR
+        env: {TOKEN: "${{ secrets.GITHUB_TOKEN }}"}
+        run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: {python-version: "3.13"}
       - name: Build, push by digest, render
         env:
           OWNER: ${{ github.repository_owner }}
           DOMAIN: ${{ vars.RAILSHOT_DOMAIN }}
         run: |
           set -euo pipefail
+          pip install -q pyyaml jsonschema
           dir="apps/$TENANT/$APP"
           images=()
-          for svc in $(uv run --no-project --with pyyaml python -c "import yaml;print(' '.join(s['name'] for s in yaml.safe_load(open('$dir/.jasmin/jasmin.yaml'))['services']))"); do
-            read -r ctx df < <(uv run --no-project --with pyyaml python -c "import yaml;s=[s for s in yaml.safe_load(open('$dir/.jasmin/jasmin.yaml'))['services'] if s['name']=='$svc'][0]['build'];print(s.get('context','.'), s['dockerfile'])")
-            ref="ghcr.io/${OWNER,,}/${TENANT}-${APP}-${svc}"
-            docker buildx build --platform linux/amd64 --push -t "$ref:${GITHUB_SHA::12}" -f "$dir/$df" --metadata-file meta.json "$dir/$ctx"
-            images+=(--image "$svc=$ref@$(jq -r '."containerimage.digest"' meta.json)")
-          done
-          uv run --no-project --with pyyaml --with jsonschema python .railshot/platform/render/render.py \
+          while read -r svc ctx df; do
+            tag="ghcr.io/${OWNER,,}/${TENANT}-${APP}-${svc}:${GITHUB_SHA::12}"
+            docker build --platform linux/amd64 -t "$tag" -f "$dir/$df" "$dir/$ctx"
+            docker push -q "$tag"
+            images+=(--image "$svc=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")")   # repo@sha256, as pushed
+          done < <(python -c 'import sys,yaml
+          for s in yaml.safe_load(open(sys.argv[1]))["services"]: print(s["name"], s["build"].get("context", "."), s["build"]["dockerfile"])' "$dir/.jasmin/jasmin.yaml")
+          python .railshot/platform/render/render.py \
             "$dir/.jasmin/jasmin.yaml" rendered --tenant "$TENANT" --domain "$DOMAIN" "${images[@]}" > render.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with: {name: rendered, path: "rendered\nrender.json"}

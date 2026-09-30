@@ -8,7 +8,7 @@ The classifier (deterministic) assigns one class to the first failing gate step 
 | F2 | Build context | `COPY failed`, file not found in context, `.dockerignore` excludes a needed path | Rule table first, then fixer | up to N |
 | F3 | Base image or architecture | `exec format error`, unknown base, disallowed base | Deterministic swap to an allowlisted base | 0 |
 | F4 | Start, port, bind, health | container exits, connection refused, health path 404/5xx, timeout | fixer | up to N |
-| F5 | Spec schema or policy violation | JSON Schema error, conftest deny, kubeconform error | fixer | up to N |
+| F5 | Spec schema or policy violation | JSON Schema error, gate L1 rule violation, render error | fixer | up to N |
 | F6 | CRITICAL vulnerability with a fix | Trivy CRITICAL | fixer (base or package version only) | up to N |
 | F7 | Application code defect | stack trace in app code, failing app tests, missing app feature | Stop, report to user with the exact change needed | 0 |
 | F8 | Transient infrastructure | registry 5xx, DNS timeout, runner lost, rate limit | Retry once without LLM | 0 |
