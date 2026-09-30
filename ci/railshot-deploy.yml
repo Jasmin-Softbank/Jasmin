@@ -1,0 +1,133 @@
+# Template for the private apps monorepo (.github/workflows/railshot-deploy.yml there).
+# One run: fix loop → build + push → render + GitOps commit → verify the public URL (revert on failure).
+# Needs: secrets ANTHROPIC_API_KEY (CI key, not a subscription token), GITOPS_TOKEN (contents:write on the GitOps repo);
+#        vars RAILSHOT_DOMAIN (e.g. 1-2-3-4.sslip.io), GITOPS_REPO (owner/name), PLATFORM_REF (commit of Jasmin).
+# ponytail: agent and gate share one job for the MVP; P1 splits them (agent job without Docker, gate job without the model key).
+name: railshot-deploy
+on:
+  workflow_dispatch:
+    inputs:
+      tenant: {description: "tenant id", required: true}
+      app: {description: "app directory name under apps/<tenant>/", required: true}
+permissions: {}
+concurrency:
+  group: railshot-${{ inputs.tenant }}-${{ inputs.app }}
+  cancel-in-progress: false
+
+env:
+  TENANT: ${{ inputs.tenant }}
+  APP: ${{ inputs.app }}
+
+jobs:
+  loop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions: {contents: read}
+    outputs:
+      passed: ${{ steps.loop.outputs.passed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {repository: Jasmin-Softbank/Jasmin, ref: "${{ vars.PLATFORM_REF }}", path: .railshot, persist-credentials: false}
+      - name: Validate inputs
+        run: '[[ "$TENANT" =~ ^[a-z0-9-]{1,30}$ && "$APP" =~ ^[a-z0-9-]{1,30}$ ]] || { echo "invalid tenant/app"; exit 1; }'
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Fix loop (intake → agent → gate, at most 3 attempts)
+        id: loop
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -d "apps/$TENANT/$APP"
+          uv run --no-project --with pyyaml --with jsonschema --with "claude-agent-sdk==0.2.158" \
+            python .railshot/platform/loop/loop.py "apps/$TENANT/$APP" run --provider claude \
+            && echo "passed=true" >> "$GITHUB_OUTPUT" || echo "passed=false" >> "$GITHUB_OUTPUT"
+          git -C run/work diff > run/agent.patch || true
+          git -C run/work ls-files --others --exclude-standard -z | xargs -0 -r tar -C run/work -cf run/new-files.tar
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: loop
+          path: |
+            run/evidence.json
+            run/agent.patch
+            run/new-files.tar
+            run/gate-*/verdict.json
+            run/*.json
+          if-no-files-found: warn
+
+  release:
+    needs: loop
+    if: needs.loop.outputs.passed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions: {contents: read, packages: write}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {repository: Jasmin-Softbank/Jasmin, ref: "${{ vars.PLATFORM_REF }}", path: .railshot, persist-credentials: false}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with: {name: loop, path: run}
+      - name: Validate inputs
+        run: '[[ "$TENANT" =~ ^[a-z0-9-]{1,30}$ && "$APP" =~ ^[a-z0-9-]{1,30}$ ]] || { echo "invalid tenant/app"; exit 1; }'
+      - name: Apply the gate-approved patch
+        run: |
+          set -euo pipefail
+          if [ -s run/agent.patch ]; then git apply --directory="apps/$TENANT/$APP" run/agent.patch; fi
+          if [ -f run/new-files.tar ]; then tar -C "apps/$TENANT/$APP" -xf run/new-files.tar; fi
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with: {registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}"}
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Build, push by digest, render
+        env:
+          OWNER: ${{ github.repository_owner }}
+          DOMAIN: ${{ vars.RAILSHOT_DOMAIN }}
+        run: |
+          set -euo pipefail
+          dir="apps/$TENANT/$APP"
+          images=()
+          for svc in $(uv run --no-project --with pyyaml python -c "import yaml;print(' '.join(s['name'] for s in yaml.safe_load(open('$dir/.jasmin/jasmin.yaml'))['services']))"); do
+            read -r ctx df < <(uv run --no-project --with pyyaml python -c "import yaml;s=[s for s in yaml.safe_load(open('$dir/.jasmin/jasmin.yaml'))['services'] if s['name']=='$svc'][0]['build'];print(s.get('context','.'), s['dockerfile'])")
+            ref="ghcr.io/${OWNER,,}/${TENANT}-${APP}-${svc}"
+            docker buildx build --platform linux/amd64 --push -t "$ref:${GITHUB_SHA::12}" -f "$dir/$df" --metadata-file meta.json "$dir/$ctx"
+            images+=(--image "$svc=$ref@$(jq -r '."containerimage.digest"' meta.json)")
+          done
+          uv run --no-project --with pyyaml --with jsonschema python .railshot/platform/render/render.py \
+            "$dir/.jasmin/jasmin.yaml" rendered --tenant "$TENANT" --domain "$DOMAIN" "${images[@]}" > render.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with: {name: rendered, path: "rendered\nrender.json"}
+
+  gitops:
+    needs: release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with: {name: rendered, path: out}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {repository: "${{ vars.GITOPS_REPO }}", token: "${{ secrets.GITOPS_TOKEN }}", path: gitops}
+      - name: Commit rendered app (serialized by the concurrency group)
+        run: |
+          set -euo pipefail
+          dest="gitops/apps/aws/$TENANT/$APP"
+          rm -rf "$dest" && mkdir -p "$dest" && cp -R out/rendered/. "$dest/"
+          cd gitops
+          git config user.name "railshot-bot" && git config user.email "railshot-bot@users.noreply.github.com"
+          git add -A && git commit -qm "deploy $TENANT/$APP from ${GITHUB_SHA::12}" || { echo "no change"; exit 0; }
+          for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 3; done
+      - name: Verify the public URL, revert on failure (LKG)
+        run: |
+          set -euo pipefail
+          url=$(jq -r .url out/render.json)
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url/" || true)
+            case "$code" in 2*|3*) echo "live: $url"; echo "### $url" >> "$GITHUB_STEP_SUMMARY"; exit 0;; esac
+            sleep 10
+          done
+          echo "not live after 10 minutes (last $code); reverting" >&2
+          cd gitops && git revert --no-edit HEAD && git push -q
+          exit 1

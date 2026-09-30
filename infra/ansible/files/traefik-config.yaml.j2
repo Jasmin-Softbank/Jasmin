@@ -1,0 +1,22 @@
+# k3s bundles Traefik; switch on its Gateway API provider and the default Gateway.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    providers:
+      kubernetesGateway:
+        enabled: true
+    gateway:
+      enabled: true
+      listeners:
+        web:
+          port: 8000
+          protocol: HTTP
+          namespacePolicy:
+            from: All
+    metrics:
+      prometheus:
+        addRoutersLabels: true

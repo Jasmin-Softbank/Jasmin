@@ -3,3 +3,6 @@ docs/wiki/
 docs/research/
 .DS_Store
 __pycache__/
+.terraform/
+*.tfstate
+*.tfstate.*

@@ -1,0 +1,64 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: railshot-tenants
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "1"}
+spec:
+  description: Tenant apps rendered by RAILSHOT. Only these kinds, only t-* namespaces.
+  sourceRepos: [GITOPS_REPO]
+  destinations:
+    - {server: https://kubernetes.default.svc, namespace: "t-*"}
+  clusterResourceWhitelist:
+    - {group: "", kind: Namespace}
+  namespaceResourceWhitelist:
+    - {group: apps, kind: Deployment}
+    - {group: "", kind: Service}
+    - {group: batch, kind: Job}
+    - {group: networking.k8s.io, kind: NetworkPolicy}
+    - {group: gateway.networking.k8s.io, kind: HTTPRoute}
+    - {group: postgresql.cnpg.io, kind: Cluster}
+    - {group: postgresql.cnpg.io, kind: DatabaseRole}
+    - {group: external-secrets.io, kind: ExternalSecret}
+    - {group: generators.external-secrets.io, kind: Password}
+    - {group: argoproj.io, kind: Rollout}
+    - {group: argoproj.io, kind: AnalysisTemplate}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: tenant-apps
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "1"}
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  syncPolicy:
+    applicationsSync: create-update       # a vanished directory must not delete the app (and its DB)
+    preserveResourcesOnDeletion: true
+  generators:
+    - git:
+        repoURL: GITOPS_REPO
+        revision: main
+        directories:
+          - path: apps/aws/*/*
+  template:
+    metadata:
+      name: 't-{{ index .path.segments 2 }}-{{ .path.basename }}'
+    spec:
+      project: railshot-tenants
+      source:
+        repoURL: GITOPS_REPO
+        targetRevision: main
+        path: '{{ .path.path }}'
+        directory:
+          exclude: meta.json
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 't-{{ index .path.segments 2 }}-{{ .path.basename }}'
+      syncPolicy:
+        automated: {prune: true, selfHeal: true}
+        syncOptions: [CreateNamespace=true, ServerSideApply=true, PruneLast=true, FailOnSharedResource=true]
+        managedNamespaceMetadata:
+          labels:
+            pod-security.kubernetes.io/enforce: restricted

@@ -1,0 +1,18 @@
+#cloud-config
+# Terraform renders only pointers; the node configures itself with ansible-pull (no SSH, no inventory).
+write_files:
+  - path: /etc/railshot/node.yml
+    permissions: "0600"
+    content: |
+      name: ${name}
+      region: ${region}
+      gitops_repo: ${gitops_repo}
+      gitops_key_param: /${name}/gitops-deploy-key
+      ghcr_token_param: /${name}/ghcr-read-token
+ansible:
+  install_method: pip
+  package_name: ansible-core==2.21.4
+  pull:
+    - url: ${node_repo}
+      checkout: ${node_ref}
+      playbook_names: [infra/ansible/node.yml]

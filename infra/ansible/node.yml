@@ -1,0 +1,81 @@
+# Runs on the node itself (ansible-pull from cloud-init). Owns everything that must exist before Argo CD runs:
+# k3s, Cilium, the Traefik Gateway API switch, Argo CD, and the root app. Argo CD owns the rest.
+- hosts: localhost
+  connection: local
+  become: true
+  vars:
+    k3s_version: v1.36.4+k3s1
+    manifests: /var/lib/rancher/k3s/server/manifests
+    kubectl: /usr/local/bin/k3s kubectl
+  vars_files:
+    - /etc/railshot/node.yml
+  tasks:
+    - name: Base packages
+      ansible.builtin.apt:
+        name: [curl, jq, unattended-upgrades]
+        update_cache: true
+
+    - name: AWS CLI (for SSM parameters; ansible-core only, so no snap module)
+      ansible.builtin.command: snap install aws-cli --classic
+      args:
+        creates: /snap/bin/aws
+
+    - name: Manifests directory
+      ansible.builtin.file:
+        path: "{{ manifests }}"
+        state: directory
+        mode: "0700"
+
+    - name: Platform manifests (Cilium first, so pods get a network)
+      ansible.builtin.template:
+        src: "files/{{ item }}.j2"
+        dest: "{{ manifests }}/{{ item }}"
+        mode: "0600"
+      loop: [cilium.yaml, traefik-config.yaml, argocd.yaml]
+
+    - name: GHCR pull credentials from SSM (optional)
+      ansible.builtin.shell: |
+        set -o pipefail
+        tok=$(/snap/bin/aws ssm get-parameter --region {{ region }} --name {{ ghcr_token_param }} --with-decryption --query Parameter.Value --output text 2>/dev/null) || exit 0
+        umask 077; mkdir -p /etc/rancher/k3s
+        printf 'configs:\n  ghcr.io:\n    auth:\n      username: railshot\n      password: %s\n' "$tok" > /etc/rancher/k3s/registries.yaml
+      args:
+        executable: /bin/bash
+        creates: /etc/rancher/k3s/registries.yaml
+      no_log: true
+
+    - name: Install k3s (pinned)
+      ansible.builtin.shell: |
+        set -o pipefail
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server \
+          --flannel-backend=none --disable-network-policy --secrets-encryption --write-kubeconfig-mode=0600
+      args:
+        executable: /bin/bash
+        creates: /usr/local/bin/k3s
+
+    - name: Wait for Argo CD CRDs
+      ansible.builtin.command: "{{ kubectl }} wait --for condition=established --timeout=600s crd/applications.argoproj.io"
+      register: crd
+      retries: 20
+      delay: 15
+      until: crd.rc == 0
+      changed_when: false
+
+    - name: Git credentials for the GitOps repo from SSM (optional, private repos)
+      ansible.builtin.shell: |
+        set -o pipefail
+        key=$(/snap/bin/aws ssm get-parameter --region {{ region }} --name {{ gitops_key_param }} --with-decryption --query Parameter.Value --output text 2>/dev/null) || exit 0
+        {{ kubectl }} -n argocd create secret generic railshot-gitops --from-literal=type=git \
+          --from-literal=url={{ gitops_repo }} --from-literal=sshPrivateKey="$key" --dry-run=client -o yaml \
+          | {{ kubectl }} label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
+          | {{ kubectl }} apply -f -
+      args:
+        executable: /bin/bash
+      no_log: true
+      changed_when: false
+
+    - name: Root application (App of Apps)
+      ansible.builtin.template:
+        src: files/root-app.yaml.j2
+        dest: "{{ manifests }}/root-app.yaml"
+        mode: "0600"
