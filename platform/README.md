@@ -155,6 +155,6 @@ AGENTIC STAR의 공개된 IaC 사례를 배포 전 구간으로 넓히고, 사�
 | D9 | 변경 확인 주체 | low·restart·cost는 요청자 1회 확인. 파괴적 변경과 비용 상한 초과만 서버 elicitation(또는 2인 승인) | 모든 변경에 "승인자 ≠ 요청자"(QA-7)를 걸면 1인 사용 흐름이 막힘(⑤) |
 | D10 | `plan` 도구 | `change`에 흡수. 실행은 `deploy`(첫 배포)와 `apply`뿐 | 자연어 에이전트 제품은 모두 plan 카드 → 승인 구조(⑤) |
 | D11 | spec에서 빠진 리소스 | 분리 후 7일 보존. 삭제는 별도 파괴적 변경 | Render 방식. DB·볼륨 데이터는 어느 플랫폼도 롤백하지 않음(⑤) |
-| D12 | CNI | k3s 번들 Flannel + 내장 NetworkPolicy 컨트롤러로 MVP, Cilium은 P1 | 렌더러의 NetworkPolicy는 표준 API라 번들로도 강제된다. 의존성 원칙(PRD §7) |
+| D12 | CNI | **결정(9/30): Cilium.** kube-proxy도 대체 | Hubble 흐름 verdict를 진단 증거로 쓴다. 번들 Flannel·NetworkPolicy·kube-proxy를 끄므로 구성 요소 수는 비슷하다 |
 
 참고로, 기본 헬스체크를 HTTP readiness로 두는 것 자체가 차별점이 될 수 있다. 조사한 PaaS 기본값은 대부분 TCP 포트 확인이거나 헬스체크가 없다(Fly는 없음, Coolify는 꺼짐)(⑤).

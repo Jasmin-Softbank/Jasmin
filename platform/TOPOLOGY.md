@@ -1,7 +1,7 @@
 # 토폴로지: 요청 경로와 배포 경로 (초안)
 
 > 목적: 전체 흐름을 한 장에서 맞추고, 각 칸을 성숙한 OSS·엔터프라이즈의 원천 개념에 붙여 이해도를 높인다. 베스트 프랙티스 문서가 아니다.
-> 경로 사다리와 증상 표는 개인 학습용 네트워크 트러블슈팅 플레이북(Calico 클러스터 기준 초안)을 RAILSHOT(EC2 위 k3s + 번들 Traefik, CNI는 D12)에 맞게 옮긴 것이다.
+> 경로 사다리와 증상 표는 개인 학습용 네트워크 트러블슈팅 플레이북(Calico 클러스터 기준 초안)을 RAILSHOT(EC2 위 k3s + Cilium + 번들 Traefik)에 맞게 옮긴 것이다.
 
 ## 1. 요청 경로 (데이터 플레인): 링크 → 컨테이너
 
@@ -10,7 +10,7 @@
 | 칸 | Jasmin 구성 | 확인 (증거 수집 명령) | 여기서 처음 실패하면 |
 |---|---|---|---|
 | 1 | 컨테이너 안 `localhost:PORT` | `kubectl exec POD -- wget -qO- localhost:PORT/HEALTH` | 앱이 안 뜸, 바인딩·포트 틀림 → F4·F7 |
-| 2 | 파드 IP (veth, CNI) | netshoot 임시 파드에서 `curl POD_IP:PORT/HEALTH` | CNI·NetworkPolicy → F5·PLATFORM (NetworkPolicy 대조, Cilium이면 `hubble observe --verdict DROPPED`) |
+| 2 | 파드 IP (veth, Cilium) | netshoot 임시 파드에서 `curl POD_IP:PORT/HEALTH` | CNI·NetworkPolicy → F5·PLATFORM (`hubble observe --verdict DROPPED`) |
 | 3 | 다른 노드의 파드 | MVP는 단일 노드라 생략. 멀티 노드면 오버레이(VXLAN·Geneve)·MTU | underlay·보안 그룹·MTU → PLATFORM |
 | 4 | Service ClusterIP | `kubectl get endpointslices -l kubernetes.io/service-name=SVC` | endpoint 없음 = readiness·selector·targetPort → F4 |
 | 5 | Service DNS | `nslookup SVC.NS.svc.cluster.local` (CoreDNS) | DNS → PLATFORM |
@@ -66,11 +66,11 @@ Provider Interface의 작업(컴퓨트, LB, 네트워크, DNS, 비밀, 블록·�
 - **Neutron ML2/OVN:** Neutron API의 network·port·router·보안 그룹이 OVN northbound 객체로 번역된다. 보안 그룹은 OVN ACL이 된다.
 - **Octavia:** LB 하나가 amphora VM(HAProxy) 또는 OVN provider(L4 전용)다. ALB 같은 L7 대응은 amphora 쪽이다.
 - **Calico:** 노드마다 Felix가 iptables·eBPF 규칙을 만들고, BGP(BIRD)로 파드 경로를 광고하거나 VXLAN·IPIP 오버레이를 쓴다. Calico VXLAN 클러스터에서 MTU 1450 함정이 자주 나온다.
-- **Cilium (팀 화이트보드 안, D12 결정 대기):** eBPF로 kube-proxy를 대체할 수 있고, 정책은 IP가 아니라 identity 기준이다. Hubble로 흐름 단위 verdict를 본다.
+- **Cilium (Jasmin 선택, D12):** eBPF로 kube-proxy를 대체하고(RAILSHOT은 대체 모드), 정책은 IP가 아니라 identity 기준이다. Hubble로 흐름 단위 verdict를 본다.
 - **K8s Service:** EndpointSlice에는 readiness를 통과한 파드만 들어간다. readiness 실패는 재시작이 아니라 트래픽 제외다.
 - **Gateway API:** GatewayClass·Gateway(인프라 제공자)와 HTTPRoute(앱 개발자)로 역할이 나뉜다. 렌더러가 HTTPRoute만 만들고 Gateway는 플랫폼이 소유하는 이유다.
 - **Ceph:** RADOS 위에 RBD(블록)·RGW(S3 호환 오브젝트)·CephFS가 올라가고, CRUSH가 데이터 배치를 정한다. Rook이 K8s 오퍼레이터다. 온프렘에서 EBS·S3의 거울상이다.
-- **k3s:** 기본으로 Traefik, ServiceLB(klipper-lb, hostPort), Flannel, local-path provisioner가 번들되어 있다. MVP 권고는 번들 그대로(Flannel + 내장 NetworkPolicy 컨트롤러)이고, Cilium은 D12에서 정한다.
+- **k3s:** 기본으로 Traefik, ServiceLB(klipper-lb, hostPort), Flannel, local-path provisioner가 번들되어 있다. RAILSHOT은 Flannel·NetworkPolicy 컨트롤러·kube-proxy를 끄고 Cilium을 쓴다. servicelb의 hostPort는 Cilium eBPF가 처리한다.
 
 ## 5. 원천 문서
 

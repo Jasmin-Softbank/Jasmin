@@ -48,7 +48,7 @@
       ansible.builtin.shell: |
         set -o pipefail
         curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server \
-          --flannel-backend=none --disable-network-policy --secrets-encryption --write-kubeconfig-mode=0600
+          --flannel-backend=none --disable-network-policy --disable-kube-proxy --secrets-encryption --write-kubeconfig-mode=0600
       args:
         executable: /bin/bash
         creates: /usr/local/bin/k3s

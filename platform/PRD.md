@@ -112,7 +112,7 @@
 | 층 | 소유 | 하는 일 |
 |---|---|---|
 | 클라우드 리소스 | **Terraform** | VPC·SG·EC2·EBS·IAM(OIDC 역할)·Route 53·ACM·(ALB)·S3(DB 백업)·Secrets Manager 항목·예산. user-data(cloud-init) 렌더링까지. `helm`·`kubernetes` provider는 쓰지 않는다 |
-| 노드 | **Ansible** (`ansible-pull`, SSH 없음) | cloud-init `ansible` 모듈로 첫 부팅 때 실행, 이후 systemd timer로 드리프트 교정. 하드닝, k3s 설치(버전·sha256 고정), k3s `manifests/`에 Argo CD·루트 Application 배치(Cilium은 D12). 기존 `install.sh`는 태스크 하나로 감싸고 폴백으로 남긴다 |
+| 노드 | **Ansible** (`ansible-pull`, SSH 없음) | cloud-init `ansible` 모듈로 첫 부팅 때 실행, 이후 systemd timer로 드리프트 교정. 하드닝, k3s 설치(버전·sha256 고정), k3s `manifests/`에 Cilium·Argo CD·루트 Application 배치. 기존 `install.sh`는 태스크 하나로 감싸고 폴백으로 남긴다 |
 | 클러스터 안 | **Argo CD** | k3s 번들과 Argo CD 자신을 뺀 전부(시크릿, CNPG, 관측성, 테넌트 앱, 도메인 구매 뒤 cert-manager) |
 | 앱 산출물 | 에이전트 제안 + 렌더러 | Dockerfile류와 `jasmin.yaml` → 매니페스트·tfvars(기본값 적용) |
 
@@ -120,7 +120,7 @@
 
 **의존성 원칙.** RAILSHOT은 self-managed k8s를 내세우므로 제품이 직접 설치·운영하는 것에만 의존한다.
 
-1. k3s 번들(Traefik, CoreDNS, local-path, metrics-server, Flannel, NetworkPolicy 컨트롤러)로 되면 따로 올리지 않는다.
+1. k3s 번들(Traefik, CoreDNS, local-path, metrics-server)로 되면 따로 올리지 않는다. CNI만 예외로 Cilium을 쓴다(D12).
 2. 우리 코드(`gate.py`·`render.py`, Python 표준 라이브러리 + pyyaml·jsonschema) 몇 줄로 되면 도구를 들이지 않는다.
 3. 개발 PC 전용 도구와 서드파티 CI 액션에 기대지 않는다. 판정은 우리 CI 러너에서 하고, 액션은 GitHub 1st-party(`actions/*`)만 SHA로 고정한다.
 4. 외부 SaaS는 끝낼 조건을 적은 한시 예외로만 쓴다.
@@ -136,7 +136,7 @@
 | 제거 | pgloader | 표준 `sqlite3` + `psql` 스크립트 |
 | 제거 | setup-uv·docker/login-action·docker/setup-buildx-action·otel-cicd-action | 러너 기본 `docker`·`python`, `actions/setup-python`, evidence로 대체 |
 | P1로 | OTel Collector·Loki·Tempo | MVP 관측은 Prometheus·Grafana, 진단 로그는 k8s API |
-| 결정 대기 | Cilium (D12) | 팀 화이트보드 안. 렌더러의 NetworkPolicy는 표준 API라 k3s 번들로도 강제된다. Cilium은 Hubble·L7 정책이 필요할 때 |
+| 유지 (D12 결정) | Cilium | 번들 Flannel·NetworkPolicy 컨트롤러·kube-proxy 셋을 대신한다. Hubble 흐름 verdict를 진단 증거로 쓴다 |
 | 유지 | cert-manager (도메인 구매 뒤) | Traefik ACME는 Gateway API 리스너에 붙지 않는다(리스너는 Secret 참조만). DNS-01 와일드카드 |
 | 한시 예외 | sslip.io | 도메인 구매(D8) 전 HTTP PoC까지만 |
 
@@ -147,8 +147,8 @@
 | IaC | Terraform / AWS provider | 1.16.4 (`~> 1.16.0`) / 6.66.0 (`~> 6.66.0`, lock 파일 커밋) |
 | 노드 구성 | ansible-core | 2.21.4 (pip, Python 3.12+) |
 | 클러스터 | k3s | **v1.36.4+k3s1** (stable 채널). 1.37은 Argo CD·CNPG·ESO 공통 지원 범위 밖 |
-| k3s 번들 | Traefik (Gateway API 켬) / CoreDNS / local-path / metrics-server / Flannel + NetworkPolicy 컨트롤러 | k3s 버전을 따름 (Traefik v3.7.8). 따로 올리지 않음 |
-| CNI | Cilium | 1.20.2 (K8s 1.33–1.36). **D12 결정 대기**, 채택 시 k3s `--flannel-backend=none` |
+| k3s 번들 | Traefik (Gateway API 켬) / CoreDNS / local-path / metrics-server / servicelb | k3s 버전을 따름 (Traefik v3.7.8). 따로 올리지 않음. Flannel·NetworkPolicy·kube-proxy는 끔 |
+| CNI | Cilium (D12 결정) | 1.20.2 (K8s 1.33–1.36). kube-proxy 대체(hostPort도 eBPF로), k3s `--flannel-backend=none --disable-network-policy --disable-kube-proxy` |
 | CD | Argo CD / Argo Rollouts | 3.5.3 (차트 10.9.4) / §8 |
 | 시크릿·인증서 | ESO / cert-manager | 2.11.0 (월 1회 갱신 필요) / 1.21.2 (도메인 구매 뒤) |
 | DB | CloudNativePG (AWS·온프렘 공통, RDS 쓰지 않음) / PostgreSQL / 백업 플러그인 | 1.30.1 / 17 (`ghcr.io/cloudnative-pg/postgresql:17`, digest) / Barman Cloud v0.15.0 |
@@ -362,8 +362,9 @@ A2A 파사드 (P2):
 | P-D2 | `cancel(run_id)` | P2(A2A와 함께) |
 | P-D3 | A2A 파사드 해커톤 범위 | 제외. Agent Card와 매핑만 발표 |
 | P-D4 | AGENTIC STAR 연동 시연 | MCP 서버 URL 등록 |
-| D12 | CNI | k3s 번들 Flannel + NetworkPolicy로 MVP, Cilium은 P1 (의존성 원칙 1) |
 | S-D1 | Ansible 도입 | `install.sh`를 감싸는 플레이북으로 시작, install.sh는 폴백 |
+
+결정됨: D12 CNI = Cilium (2026-09-30).
 
 참고: AGENTIC STAR의 A2A는 0.3이다. 마켓플레이스판 릴리스 노트의 최신은 v2.9.0(8/21)이다. 앞선 조사에서 쓴 "v2.10.0, MCP·A2A UI 리소스"는 AWS Marketplace 제품 페이지 표기라서 릴리스 노트와 맞지 않는다.
 
