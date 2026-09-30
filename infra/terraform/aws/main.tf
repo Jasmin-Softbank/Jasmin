@@ -19,28 +19,28 @@ data "aws_caller_identity" "me" {}
 
 resource "aws_security_group" "node" {
   name        = "${var.name}-node"
-  description = "HTTP/HTTPS in only; no SSH (access via SSM)"
+  description = "Web in only, no SSH (SSM). Out: 80/443 only; control plane pulls (platform/ZERO-TRUST.md)"
   vpc_id      = data.aws_vpc.default.id
 
-  ingress {
-    description = "http"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "ingress" {
+    for_each = var.https_enabled ? [80, 443] : [80]
+    content {
+      description = "web ${ingress.value}"
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
   }
-  ingress {
-    description = "https"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+  dynamic "egress" {
+    for_each = [80, 443] # apt mirrors; GitHub, GHCR, SSM, AWS APIs, declared tenant hosts. AWS DNS and IMDS bypass SGs.
+    content {
+      description = "out ${egress.value}"
+      from_port   = egress.value
+      to_port     = egress.value
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
   }
 }
 

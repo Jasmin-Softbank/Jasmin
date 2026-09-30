@@ -6,12 +6,14 @@ usage:
   render.py --self-test
 
 Output (one Application per directory, discovered by the tenant ApplicationSet):
-  00-db.yaml, 05-grants.yaml, 10-migrate.yaml, 20-app.yaml, 21-services.yaml, 22-route.yaml,
+  01-guardrails.yaml, 00-db.yaml, 05-grants.yaml, 10-migrate.yaml, 20-app.yaml, 21-services.yaml, 22-route.yaml,
   30-netpol.yaml, 90-smoke.yaml, meta.json
+Network: the cluster baseline (gitops-template 30-network-baseline.yaml) denies everything; this adds per-app allows.
 """
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -22,7 +24,9 @@ SIZES = {"S": (("100m", "128Mi"), ("500m", "512Mi")),
          "M": (("250m", "256Mi"), ("1", "1Gi")),
          "L": (("500m", "512Mi"), ("2", "2Gi"))}
 GATEWAY = {"name": "traefik-gateway", "namespace": "kube-system", "sectionName": "web"}
-ALLOWED_NS = [GATEWAY["namespace"], "cnpg-system", "monitoring"]   # ingress into tenant pods
+TRAEFIK = {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}},
+           "podSelector": {"matchLabels": {"app.kubernetes.io/name": "traefik"}}}
+TENANT_RE = re.compile(r"[a-z0-9]{1,20}")   # no '-': namespace t-<tenant>-<app> can never collide across tenants
 PG_IMAGE = "ghcr.io/cloudnative-pg/postgresql:17"     # ponytail: tag here; the pipeline pins the digest
 PSQL_IMAGE = "postgres:17"
 CURL_IMAGE = "curlimages/curl:8.16.0"
@@ -87,7 +91,40 @@ def db_objects(app, ns, storage_class):
     return docs
 
 
-def hook_job(name, ns, wave, image, command, env, uid=65532):
+def resources(size):
+    (rq_cpu, rq_mem), (lm_cpu, lm_mem) = SIZES[size]
+    return {"requests": {"cpu": rq_cpu, "memory": rq_mem}, "limits": {"cpu": lm_cpu, "memory": lm_mem}}
+
+
+def guardrails(ns):
+    """Per-namespace limits. LoadBalancer/NodePort 0 keeps tenants from opening node ports."""
+    return [{"apiVersion": "v1", "kind": "ResourceQuota", "metadata": meta("railshot", ns, -3),
+             "spec": {"hard": {"services.loadbalancers": "0", "services.nodeports": "0", "pods": "30",
+                               "persistentvolumeclaims": "2", "requests.storage": "5Gi"}}},
+            {"apiVersion": "v1", "kind": "LimitRange", "metadata": meta("railshot", ns, -3),
+             "spec": {"limits": [{"type": "Container", "max": {"cpu": "2", "memory": "2Gi"},
+                                  "default": {"cpu": "500m", "memory": "256Mi"},
+                                  "defaultRequest": {"cpu": "50m", "memory": "64Mi"}}]}}]
+
+
+def network_policies(ns, routed_ports, egress_hosts):
+    """Allows on top of the cluster default-deny: same app, gateway → routed ports, declared hosts on 443."""
+    ingress = [{"from": [{"podSelector": {}}]}]
+    if routed_ports:
+        ingress.append({"from": [TRAEFIK], "ports": [{"protocol": "TCP", "port": p} for p in routed_ports]})
+    docs = [{"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy", "metadata": meta("app", ns, -3),
+             "spec": {"podSelector": {}, "policyTypes": ["Ingress", "Egress"], "ingress": ingress,
+                      "egress": [{"to": [{"podSelector": {}}]}]}}]   # DNS comes from the baseline
+    if egress_hosts:
+        docs.append({"apiVersion": "cilium.io/v2", "kind": "CiliumNetworkPolicy", "metadata": meta("egress", ns, -3),
+                     "spec": {"endpointSelector": {"matchExpressions": [{"key": "cnpg.io/cluster", "operator": "DoesNotExist"}]},
+                              "egress": [{"toFQDNs": [{"matchPattern": h} if h.startswith("*.") else {"matchName": h}
+                                                      for h in egress_hosts],
+                                          "toPorts": [{"ports": [{"port": "443", "protocol": "TCP"}]}]}]}})
+    return docs
+
+
+def hook_job(name, ns, wave, image, command, env, uid=65532, res=None):
     return {"apiVersion": "batch/v1", "kind": "Job",
             "metadata": meta(name, ns, wave, {"argocd.argoproj.io/hook": "Sync",
                                               "argocd.argoproj.io/hook-delete-policy": "HookSucceeded"}),
@@ -95,7 +132,7 @@ def hook_job(name, ns, wave, image, command, env, uid=65532):
                 "restartPolicy": "Never", "automountServiceAccountToken": False,
                 "securityContext": pod_security(uid),
                 "containers": [{"name": "run", "image": image, "command": command, "env": env,
-                                "securityContext": container_security(),
+                                "securityContext": container_security(), **({"resources": res} if res else {}),
                                 "volumeMounts": [{"name": "tmp", "mountPath": "/tmp"}]}],
                 "volumes": [{"name": "tmp", "emptyDir": {}}]}}}}
 
@@ -115,7 +152,6 @@ def grants_job(app, ns):
 
 def service_objects(app, ns, svc, image, has_db):
     name = f"{app}-{svc['name']}"
-    (rq_cpu, rq_mem), (lm_cpu, lm_mem) = SIZES[svc.get("size", "S")]
     health = svc.get("health", "/")
     env = [{"name": "PORT", "value": str(svc["port"])}]
     env += [{"name": k, "value": v} for k, v in sorted(svc.get("env", {}).items())]
@@ -125,7 +161,7 @@ def service_objects(app, ns, svc, image, has_db):
     probe = {"httpGet": {"path": health, "port": svc["port"]}}
     container = {"name": svc["name"], "image": image, "ports": [{"containerPort": svc["port"], "name": "http"}],
                  "env": env, "securityContext": container_security(),
-                 "resources": {"requests": {"cpu": rq_cpu, "memory": rq_mem}, "limits": {"cpu": lm_cpu, "memory": lm_mem}},
+                 "resources": resources(svc.get("size", "S")),
                  "startupProbe": {**probe, "periodSeconds": 2, "failureThreshold": 30},
                  "readinessProbe": {**probe, "periodSeconds": 5},
                  "livenessProbe": {**probe, "periodSeconds": 10, "failureThreshold": 3},
@@ -154,18 +190,21 @@ def service_objects(app, ns, svc, image, has_db):
 
 
 def render(spec, out, tenant, domain, images, suffix, storage_class):
+    if not TENANT_RE.fullmatch(tenant):
+        raise ValueError(f"tenant must match {TENANT_RE.pattern}: {tenant!r}")
     app = spec["app"]
     ns = f"t-{tenant}-{app}"
     host = f"{app}-{suffix}.{domain}"
     has_db = "postgres" in spec.get("resources", {})
     out.mkdir(parents=True, exist_ok=True)
-    files = {}
+    files = {"01-guardrails.yaml": guardrails(ns)}
     if has_db:
         files["00-db.yaml"] = db_objects(app, ns, storage_class)
         files["05-grants.yaml"] = [grants_job(app, ns)]
         migrations = [hook_job(f"{app}-{s['name']}-migrate", ns, 1, images[s["name"]], s["migrate"]["command"],
                                [{"name": "MIGRATION_DATABASE_URL",
-                                 "valueFrom": {"secretKeyRef": {"name": f"{app}-db-app", "key": "uri"}}}])
+                                 "valueFrom": {"secretKeyRef": {"name": f"{app}-db-app", "key": "uri"}}}],
+                               res=resources(s.get("size", "S")))
                       for s in spec["services"] if s.get("migrate")]
         if migrations:
             files["10-migrate.yaml"] = migrations
@@ -183,14 +222,8 @@ def render(spec, out, tenant, domain, images, suffix, storage_class):
     files["22-route.yaml"] = [{"apiVersion": "gateway.networking.k8s.io/v1", "kind": "HTTPRoute",
                                "metadata": meta(app, ns, 2),
                                "spec": {"parentRefs": [GATEWAY], "hostnames": [host], "rules": rules}}]
-    files["30-netpol.yaml"] = [{"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
-                                "metadata": meta("default", ns),
-                                "spec": {"podSelector": {}, "policyTypes": ["Ingress", "Egress"],
-                                         "ingress": [{"from": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": n}}} for n in ALLOWED_NS]
-                                                      + [{"podSelector": {}}]}],
-                                         "egress": [{"to": [{"podSelector": {}}]},
-                                                    {"ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]},
-                                                    {"ports": [{"protocol": "TCP", "port": 443}, {"protocol": "TCP", "port": 6443}]}]}}]
+    files["30-netpol.yaml"] = network_policies(ns, sorted({s["port"] for s in spec["services"] if s.get("route")}),
+                                               spec.get("egress", []))
     root = next((s for s in spec["services"] if s.get("route") == "/"), next(s for s in spec["services"] if s.get("route")))
     smoke_path = root.get("health", "/")
     files["90-smoke.yaml"] = [{"apiVersion": "batch/v1", "kind": "Job",
@@ -261,8 +294,25 @@ def self_test():
         mig = next(x for x in docs if x["kind"] == "Job" and x["metadata"]["name"].endswith("-migrate"))
         assert mig["metadata"]["annotations"][WAVE] == "1"
         assert all(e["valueFrom"]["secretKeyRef"]["name"] == "memo-db-app" for e in mig["spec"]["template"]["spec"]["containers"][0]["env"])
+        np = next(x for x in docs if x["kind"] == "NetworkPolicy")
+        assert np["spec"]["ingress"][1]["ports"] == [{"protocol": "TCP", "port": 8000}, {"protocol": "TCP", "port": 8080}]
+        assert "6443" not in json.dumps(np) and "CiliumNetworkPolicy" not in kinds       # no egress declared → none
+        rq = next(x for x in docs if x["kind"] == "ResourceQuota")
+        assert rq["spec"]["hard"]["services.loadbalancers"] == "0" == rq["spec"]["hard"]["services.nodeports"]
+        assert mig["spec"]["template"]["spec"]["containers"][0]["resources"]["limits"]["memory"] == "512Mi"
         cl = next(x for x in docs if x["kind"] == "Cluster")
         assert cl["metadata"]["annotations"][SYNC_OPTS] == "Prune=confirm,Delete=false" and not cl["spec"]["enableSuperuserAccess"]
+    with tempfile.TemporaryDirectory() as d:
+        info = render({**spec, "egress": ["api.example.com", "*.stripe.com"]}, Path(d), "t1", "example.test",
+                      {"api": "i@sha256:" + "a" * 64, "admin": "i@sha256:" + "b" * 64}, "x", "gp3")
+        cnp = [x for x in yaml.safe_load_all((Path(d) / "30-netpol.yaml").read_text()) if x["kind"] == "CiliumNetworkPolicy"][0]
+        assert cnp["spec"]["egress"][0]["toFQDNs"] == [{"matchName": "api.example.com"}, {"matchPattern": "*.stripe.com"}]
+    for bad in ("a-b", "", "x" * 21, "A1"):
+        try:
+            render(spec, Path("/nonexistent"), bad, "d", {}, "x", "gp3")
+            raise AssertionError(f"tenant {bad!r} accepted")
+        except ValueError:
+            pass
     print("self-test ok")
     return 0
 

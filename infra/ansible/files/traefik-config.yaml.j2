@@ -1,4 +1,4 @@
-# k3s bundles Traefik; switch on its Gateway API provider and the default Gateway.
+# k3s bundles Traefik. One way in: the Gateway API provider only, and only routes from tenant namespaces.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -9,6 +9,10 @@ spec:
     providers:
       kubernetesGateway:
         enabled: true
+      kubernetesIngress:
+        enabled: false   # no Ingress / IngressRoute side doors
+      kubernetesCRD:
+        enabled: false
     gateway:
       enabled: true
       listeners:
@@ -16,7 +20,9 @@ spec:
           port: 8000
           protocol: HTTP
           namespacePolicy:
-            from: All
+            from: Selector
+            selector:
+              matchExpressions: [{key: railshot.dev/tenant, operator: Exists}]
     metrics:
       prometheus:
         addRoutersLabels: true

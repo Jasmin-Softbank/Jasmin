@@ -16,6 +16,9 @@ spec:
     - {group: "", kind: Service}
     - {group: batch, kind: Job}
     - {group: networking.k8s.io, kind: NetworkPolicy}
+    - {group: cilium.io, kind: CiliumNetworkPolicy}     # FQDN egress only (renderer)
+    - {group: "", kind: ResourceQuota}
+    - {group: "", kind: LimitRange}
     - {group: gateway.networking.k8s.io, kind: HTTPRoute}
     - {group: postgresql.cnpg.io, kind: Cluster}
     - {group: postgresql.cnpg.io, kind: DatabaseRole}
@@ -62,3 +65,5 @@ spec:
         managedNamespaceMetadata:
           labels:
             pod-security.kubernetes.io/enforce: restricted
+            railshot.dev/tenant: '{{ index .path.segments 2 }}'   # the gateway only accepts routes from these namespaces
+            railshot.dev/app: '{{ .path.basename }}'

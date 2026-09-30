@@ -29,6 +29,16 @@
         ]
       }
     },
+    "egress": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "description": "External HTTPS hosts the code calls at runtime (TCP 443 only). All other outbound traffic is denied.",
+      "items": {
+        "type": "string",
+        "pattern": "^(\\*\\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$"
+      }
+    },
     "resources": {
       "type": "object",
       "additionalProperties": false,

@@ -7,7 +7,7 @@ write_files:
       name: ${name}
       region: ${region}
       gitops_repo: ${gitops_repo}
-      gitops_key_param: /${name}/gitops-deploy-key
+      gitops_token_param: /${name}/gitops-read-token
       ghcr_token_param: /${name}/ghcr-read-token
 packages: [python3-pip]   # ansible-core via pip (cloud-init ansible module)
 ansible:

@@ -50,7 +50,7 @@ The user never writes these. They follow the Kubernetes Pod Security Standards "
 | Security context | runAsNonRoot, UID from the image (65532 if unset), readOnlyRootFilesystem with an emptyDir at `/tmp`, allowPrivilegeEscalation false, all capabilities dropped, seccomp RuntimeDefault |
 | Pod | no service account token, no hostPath, hostNetwork or hostPID |
 | Namespace | `t-<tenant>-<app>` with ResourceQuota and LimitRange |
-| Network | NetworkPolicy default deny; ingress only from the gateway; egress to DNS and TCP 443 |
+| Network | default deny both ways (cluster baseline). Ingress: gateway to routed ports, same app. Egress: DNS, same app, `egress` hosts on TCP 443. IMDS, kube-apiserver and SMTP always denied |
 | Routing | HTTPRoute on `<app>-<random6>.<platform-domain>`, one path rule per `route`, TLS from the platform's wildcard certificate |
 | Image | GHCR, referenced by digest |
 | Rollout | RollingUpdate with maxUnavailable 0; smoke test on the public URL after sync; last known good (LKG) restore on failure |

@@ -17,7 +17,8 @@ Make the repository deployable on Jasmin with the fewest new files. You write th
 2. Confirm every fact in the source code, not in docs or comments:
    - the real start command and how to bind `0.0.0.0` (existing CLI flag or env var);
    - the port and whether the app reads `PORT`;
-   - a health path that returns 2xx without auth or side effects. Prefer an existing health route, then a cheap read-only route, then `/`. Never invent an endpoint.
+   - a health path that returns 2xx without auth or side effects. Prefer an existing health route, then a cheap read-only route, then `/`. Never invent an endpoint;
+   - external hosts the code calls at runtime (HTTP clients, SDK base URLs). They go to `egress`; outbound traffic to anything else is blocked.
    Record each fact with `file:line` in `assumptions`.
 3. Choose the build per service, in this order:
    1. An existing Dockerfile that meets the contract: keep it; fix only contract violations.
@@ -40,7 +41,7 @@ Make the repository deployable on Jasmin with the fewest new files. You write th
 ## Must not
 
 - Modify application source, tests, lockfiles or dependency manifests. If the app needs such a change, `give_up` with class `F7` or `OUT_OF_SCOPE` and state the exact edit the user must make.
-- Add services, sidecars, databases or ports the code does not need.
+- Add services, sidecars, databases, ports or egress hosts the code does not need.
 - Restate platform defaults (probes, resources, security context, routing, TLS, replicas) anywhere.
 
 ## Example (shape only, not this repository)

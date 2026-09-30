@@ -7,6 +7,7 @@ SoftBank Hackathon 2026 예선(10/3–4) Team Jasmin. 테마 "One Action, Infini
 - `platform/README.md` — 구성 요소·권한, 에이전트 분리, 지침 전달, 결정 대기 항목
 - `platform/PRD.md` — 요구사항, 고정 기술 스택, CD·관측성·에이전트 통신·MCP 도구
 - `platform/TOPOLOGY.md` — 요청 경로와 배포 경로
+- `platform/ZERO-TRUST.md` — 보안 원칙, 인바운드·아웃바운드 허용 목록, 멀티테넌시
 - 결정은 팀 노션의 결정 로그(DEC-n)와 미결 안건(QA-n)이 정본이다. 이와 어긋나는 구현을 하기 전에 먼저 묻기.
 
 ## 레포 안의 두 종류 지침

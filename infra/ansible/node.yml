@@ -5,6 +5,8 @@
   become: true
   vars:
     k3s_version: v1.36.4+k3s1
+    k3s_sha256: 835873f37245fc615f547a2fe2af9402a347875f13fa64a1f136de644955ea3f          # release asset `k3s` (amd64)
+    k3s_install_sha256: 46177d4c99440b4c0311b67233823a8e8a2fc09693f6c89af1a7161e152fbfad  # install.sh at the same tag
     manifests: /var/lib/rancher/k3s/server/manifests
     kubectl: /usr/local/bin/k3s kubectl
   vars_files:
@@ -44,14 +46,30 @@
         creates: /etc/rancher/k3s/registries.yaml
       no_log: true
 
-    - name: Install k3s (pinned)
-      ansible.builtin.shell: |
-        set -o pipefail
-        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server \
-          --flannel-backend=none --disable-network-policy --disable-kube-proxy --secrets-encryption --write-kubeconfig-mode=0600
+    - name: k3s binary (pinned by sha256)
+      ansible.builtin.get_url:
+        url: "https://github.com/k3s-io/k3s/releases/download/{{ k3s_version | urlencode }}/k3s"
+        dest: /usr/local/bin/k3s
+        mode: "0755"
+        checksum: "sha256:{{ k3s_sha256 }}"
+
+    - name: k3s install script (pinned by sha256, never piped from the network)
+      ansible.builtin.get_url:
+        url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_version | urlencode }}/install.sh"
+        dest: /usr/local/lib/k3s-install.sh
+        mode: "0700"
+        checksum: "sha256:{{ k3s_install_sha256 }}"
+
+    - name: Install the k3s service with the verified binary
+      ansible.builtin.command: >-
+        /usr/local/lib/k3s-install.sh server
+        --flannel-backend=none --disable-network-policy --disable-kube-proxy
+        --secrets-encryption --write-kubeconfig-mode=0600
+      environment:
+        INSTALL_K3S_SKIP_DOWNLOAD: "true"
+        INSTALL_K3S_VERSION: "{{ k3s_version }}"
       args:
-        executable: /bin/bash
-        creates: /usr/local/bin/k3s
+        creates: /etc/systemd/system/k3s.service
 
     - name: Wait for Argo CD CRDs
       ansible.builtin.command: "{{ kubectl }} wait --for condition=established --timeout=600s crd/applications.argoproj.io"
@@ -61,12 +79,12 @@
       until: crd.rc == 0
       changed_when: false
 
-    - name: Git credentials for the GitOps repo from SSM (optional, private repos)
+    - name: GitOps read token from SSM (optional, private repos over HTTPS; the node has no SSH egress)
       ansible.builtin.shell: |
         set -o pipefail
-        key=$(/snap/bin/aws ssm get-parameter --region {{ region }} --name {{ gitops_key_param }} --with-decryption --query Parameter.Value --output text 2>/dev/null) || exit 0
+        tok=$(/snap/bin/aws ssm get-parameter --region {{ region }} --name {{ gitops_token_param }} --with-decryption --query Parameter.Value --output text 2>/dev/null) || exit 0
         {{ kubectl }} -n argocd create secret generic railshot-gitops --from-literal=type=git \
-          --from-literal=url={{ gitops_repo }} --from-literal=sshPrivateKey="$key" --dry-run=client -o yaml \
+          --from-literal=url={{ gitops_repo }} --from-literal=username=x-access-token --from-literal=password="$tok" --dry-run=client -o yaml \
           | {{ kubectl }} label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
           | {{ kubectl }} apply -f -
       args:

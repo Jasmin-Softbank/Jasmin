@@ -31,7 +31,7 @@ variable "node_ref" {
 }
 
 variable "gitops_repo" {
-  description = "Git repo Argo CD pulls (SSH URL when private)"
+  description = "HTTPS URL of the Git repo Argo CD pulls (the node has no SSH egress)"
   type        = string
 }
 
@@ -50,4 +50,10 @@ variable "budget_email" {
   description = "Budget alert recipient; empty disables the budget"
   type        = string
   default     = ""
+}
+
+variable "https_enabled" {
+  description = "Open 443 once the app domain and its certificate exist; until then only 80 is reachable"
+  type        = bool
+  default     = false
 }
