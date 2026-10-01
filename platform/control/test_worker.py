@@ -82,6 +82,20 @@ class WorkerTests(unittest.TestCase):
         self.assertIn('[REDACTED]', json.dumps(self.events))
         self.assertNotIn('hidden', json.dumps(worker.redact({'password': 'hidden', 'text': '{"access_token":"hidden"}'})))
 
+    def test_delayed_quality_logs_keep_producer_phase_and_do_not_merge_streams(self):
+        run=self.root/'run'; gate=run/'gate-0'; gate.mkdir(parents=True)
+        (gate/'quality-0.log').write_text('lint partial')
+        bridge=worker.Bridge(self.request('ci'),self.events.append)
+        bridge.tail_quality(run)
+        bridge.emit('stage',phase='L2',outcome='RUNNING')
+        (gate/'quality-1.log').write_text('other project\n')
+        with (gate/'quality-0.log').open('a') as f: f.write(' completed\n')
+        bridge.tail_quality(run);bridge.flush()
+        logs=[e for e in self.events if e['type']=='log']
+        self.assertEqual([e['text'] for e in logs],['lint partial completed','other project'])
+        self.assertEqual({e['phase'] for e in logs},{'Q'})
+        self.assertEqual({e['stream'] for e in logs},{'gate'})
+
     def test_inspection_does_not_turn_docker_presence_into_ci_readiness(self):
         results = [subprocess.CompletedProcess([], 0, '28.0.0\n', ''),
                    subprocess.CompletedProcess([], 0, '"bridge"\n', '')]

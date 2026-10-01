@@ -15,6 +15,20 @@ from unittest.mock import patch
 import run_agent
 
 
+def native_turn(status='completed', response='{"status":"proposed"}', identity='turn-test', message='synthetic error', before=None):
+    from openai_codex.models import Notification, ItemCompletedNotification, TurnCompletedNotification
+    def stream():
+        if before: before()
+        if response:
+            yield Notification('item/completed', ItemCompletedNotification.model_validate({
+                'threadId':'thread-test','turnId':identity,'completedAtMs':1,
+                'item':{'id':'item-test','type':'agentMessage','phase':'final_answer','text':response}}))
+        yield Notification('turn/completed', TurnCompletedNotification.model_validate({
+            'threadId':'thread-test','turn':{'id':identity,'status':status,'items':[],
+                'error':{'message':message,'codexErrorInfo':'other'} if status=='failed' else None}}))
+    return SimpleNamespace(id=identity,stream=stream)
+
+
 class RunnerTest(unittest.TestCase):
     def test_path_policy_supports_recursive_globs_without_python313(self):
         for rel, pattern, expected in [('app.py', '**/*.py', True), ('src/lib/app.py', '**/*.py', True),
@@ -44,7 +58,7 @@ class RunnerTest(unittest.TestCase):
         def complete():
             self.assertEqual(observed[-1], ('turn.started', {'turn_id': 'turn-test'}))
             return result
-        thread = SimpleNamespace(id='thread-test', turn=lambda *a, **kw: SimpleNamespace(id='turn-test', run=complete))
+        thread = SimpleNamespace(id='thread-test', turn=lambda *a, **kw: native_turn(before=complete))
         with tempfile.TemporaryDirectory() as d, patch.object(openai_codex, 'Codex') as sdk, patch.dict('os.environ', {'RAILSHOT_AUTH_MODE':'subscription', 'RAILSHOT_CODEX_HOME':'/tmp/operator-auth', 'CODEX_API_KEY':'', 'OPENAI_API_KEY':''}):
             sdk.return_value.__enter__.return_value.thread_start.return_value = thread
             out, meta = run_agent.run_codex(cfg, 'policy', 'task', {'type':'object','properties':{}}, Path(d), Path(d),
@@ -388,7 +402,7 @@ class RunnerTest(unittest.TestCase):
                                        ('completed', 'sentinel-invalid-json', 'SDK_OUTPUT_INVALID')]:
             with self.subTest(status=status), tempfile.TemporaryDirectory() as directory:
                 result = SimpleNamespace(id='turn-fixture', status=status, final_response=response)
-                thread = SimpleNamespace(id='thread-fixture', turn=lambda *a, **kw: SimpleNamespace(id=result.id, run=lambda: result))
+                thread = SimpleNamespace(id='thread-fixture', turn=lambda *a, **kw: native_turn(status,response,result.id))
                 with patch.object(openai_codex, 'Codex') as sdk, patch.dict(os.environ, {
                         'RAILSHOT_AUTH_MODE':'subscription', 'RAILSHOT_CODEX_HOME':'/tmp/operator-auth',
                         'CODEX_API_KEY':'', 'OPENAI_API_KEY':''}), self.assertRaises(run_agent.OperationError) as error:
@@ -397,6 +411,29 @@ class RunnerTest(unittest.TestCase):
                 self.assertEqual((error.exception.code, error.exception.outcome, error.exception.side_effect),
                                  (code, 'FAIL', 'completed'))
                 self.assertNotIn('sentinel-invalid-json', json.dumps(error.exception.as_dict()))
+
+    def test_native_failed_run_raises_but_public_stream_preserves_terminal_evidence(self):
+        from openai_codex import TurnHandle
+        turn=native_turn('failed','',message='Invalid schema: uniqueItems; sentinel-private-value')
+        with self.assertRaises(RuntimeError): TurnHandle.run(turn)
+        result=run_agent.collect_codex_turn(turn)
+        self.assertEqual(result.status.value,'failed')
+        detail=run_agent.codex_failure_diagnostic(result.error)
+        self.assertEqual(detail['category'],'invalid_output_schema')
+        self.assertEqual(len(detail['message_sha256']),64)
+        self.assertNotIn('sentinel-private-value',json.dumps(detail))
+        missing=SimpleNamespace(id='turn-test',stream=lambda:(x for x in []))
+        with self.assertRaises(run_agent.OperationError) as caught:run_agent.collect_codex_turn(missing)
+        self.assertEqual((caught.exception.code,caught.exception.outcome),('SDK_OUTCOME_UNKNOWN','UNKNOWN'))
+
+    def test_wire_schema_removes_unsupported_constraints_without_weakening_canonical(self):
+        schema={'type':'object','properties':{'version':{'const':1},'kind':{'enum':['draft']},
+            'items':{'type':'array','uniqueItems':True,'items':{'type':'string'}}},'required':['version']}
+        projected=run_agent.strict_variant(schema)
+        self.assertTrue(schema['properties']['items']['uniqueItems'])
+        self.assertEqual(schema['properties']['version'],{'const':1})
+        self.assertEqual(projected['properties']['version'],{'enum':[1],'type':'integer'})
+        self.assertNotIn('uniqueItems',json.dumps(projected))
 
     def test_validated_main_success_is_later_than_sdk_completion(self):
         def provider(cfg, system, task, schema, workspace, run, deny, emit):

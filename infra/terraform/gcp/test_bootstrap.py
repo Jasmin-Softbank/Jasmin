@@ -104,6 +104,11 @@ class BootstrapRenderTests(unittest.TestCase):
         policy = evaluate("{iap = local.iap_ssh, runtime = local.runtime_limit}")
         self.assertEqual(policy, {"iap": None, "runtime": None})
 
+    def test_registry_oauth_scope_is_explicit_and_read_only(self):
+        self.assertEqual(evaluate("local.node_oauth_scopes"), [])
+        self.assertEqual(evaluate("local.node_oauth_scopes", overrides={"enable_gcp_registry_pull": True}),
+                         ["https://www.googleapis.com/auth/devstorage.read_only"])
+
     def test_opt_in_uses_only_iap_ssh_and_stops_without_restart(self):
         policy = evaluate(
             "{iap = local.iap_ssh, runtime = local.runtime_limit}",

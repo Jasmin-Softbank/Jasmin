@@ -2,22 +2,22 @@
 
 **로컬 웹앱을 올리면 AI가 필요한 수정을 제안하고, 실제 CI 검사를 통과한 동일 이미지를 클라우드에 배포하는 시스템.** SoftBank Hackathon 2026의 “One Action, Infinite Clouds”를 목표로 개발하고 있습니다. 플랫폼 가제는 RAILSHOT, 콘솔의 대화 도우미는 Nuvlet Bot(누블렛)입니다. `.jasmin/` 등 기존 내부 이름은 유지합니다.
 
-현재는 **관리자 한 명이 사용하는 로컬 콘솔과 실제 원격 CI·SDK 채팅을 연결한 PoC**입니다. 모든 클라우드·모든 앱의 원터치 배포가 완성된 상태는 아닙니다. 아래는 **2026-10-01 21:10 KST / 12:10 UTC**에 확인한 소스와 보존된 실행 증거 기준입니다.
+현재는 **관리자 한 명이 사용하는 로컬 콘솔과 실제 원격 CI·SDK 채팅을 연결한 PoC**입니다. 모든 클라우드·모든 앱의 원터치 배포가 완성된 상태는 아닙니다. 아래는 **2026-10-01 21:45 KST / 12:45 UTC**에 확인한 소스와 보존된 실행 증거 기준입니다.
 
 ## 현재 어디까지 동작하나요?
 
 | 원래 담당 범위와 제품 연결 | 확인된 결과 | 남은 완료 조건 |
 |---|---|---|
-| **CI 핵심** | 격리된 GCP CI에서 JS·TS·Next.js·Python·Java와 추가 package manager를 포함한 정상 fixture 10종의 전체 gate PASS. 실제 Codex source/packaging 수정 후 같은 gate 재검증 | 임의 업로드 전체 지원을 뜻하지 않음. 지원 범위·실패 사례는 [CI 검증 원장](platform/scenarios/ci-validation.md)에서 관리 |
+| **CI 핵심** | 격리된 GCP CI에서 정상 fixture 10종의 전체 gate PASS. 같은 공통 코드로 AWS CI VM에서도 npm-js 전체 6단계 PASS(81.3초). 실제 Codex source/packaging 수정 후 같은 gate 재검증 | 임의 업로드 전체 지원을 뜻하지 않음. 지원 범위·실패 사례는 [CI 검증 원장](platform/scenarios/ci-validation.md)에서 관리 |
 | **AWS · Terraform** | AWS control VM에서 Codex SDK 구독 인증·실제 응답/수정. AWS/GCP/Azure 관리자 plan/apply 코드와 로컬 검사 | **AWS의 새 앱 스택을 처음부터 배포하는 E2E 미검증**. 제품 workspace allocator·상위 인프라 CRUD 연결 미구현 |
 | **Argo bootstrap** | GCP 앱 노드의 k3s·Cilium·Argo CD·KEDA 설치, 보존 디스크와 stop/start 후 readiness 확인 | AWS 앱 스택 bootstrap 인수, 실제 사용자 앱의 revision·image digest·공개 URL 검증 |
-| **CodeBuild** | 신뢰된 release 전용으로 사용하는 배치 계약·GitHub Actions 템플릿 | **CodeBuild 실행 연결·실행 증거 없음**. 구현 작업 진행 중 |
+| **CodeBuild** | 고정 플랫폼 commit의 release 전용 publisher·Terraform·durable dispatch 구현, 로컬 회귀 PASS | 첫 native 빌드의 이미지 게시 실패·UNKNOWN 보존. 실패 진단 보완 및 재검증 중. 제품 Allow와의 별도 연결은 미완료 |
 | **CD · Allow** | 영속 승인 kernel, exact-image bundle, release adapter와 revision 관측 코드 | **제품 Allow 소비→release dispatch 및 실제 공개 배포 인수 진행 중**. 승인 버튼·Argo 설치만으로 배포 완료 처리하지 않음 |
-| **LKG 복구** | 앱별 마지막 정상 배포를 되돌리는 계약 | **자동 LKG 선택·복원·복구 후 재검증 미구현**. DB 데이터 복원과도 별개 |
+| **LKG 복구** | 강한 배포 검증 후 정상 선언 저장, 앱 경로만 새 커밋으로 복원, 같은 검증 재수행 구현·로컬 회귀 | **실제 앱 배포·복원 인수 미완료**. 제품 rollback 선택 UI와 DB 데이터 복원은 별도 |
 
-콘솔 API·SSE·영속 job 상태·제어권 전환·SDK 채팅은 구현돼 있습니다. 다만 **콘솔 CI는 현재 `--max-attempts 0`으로 실행**하므로 자동 코드 수정을 수행하지 않습니다. CLI로 확인한 SDK 수정 성공과 콘솔 기능을 구분합니다. 최신 세부 상태는 [통합 계획의 실행 기록](platform/CONTROL-PLANE-PLAN.md#77-현재-실제-구현실행-상태)과 [클라우드 검증 기록](platform/scenarios/cloud-validation.md)을 따릅니다.
+콘솔 API·SSE·영속 job 상태·제어권 전환·SDK 채팅은 구현돼 있습니다. 다만 **콘솔 CI는 현재 `--max-attempts 0`으로 실행**하므로 자동 코드 수정을 수행하지 않습니다. CLI로 확인한 SDK 수정 성공과 콘솔 기능을 구분합니다. 최신 세부 상태는 [통합 계획의 실행 기록](platform/CONTROL-PLANE-PLAN.md#77-2026-10-01-구현-증분과-남은-검증)과 [클라우드 검증 기록](platform/scenarios/cloud-validation.md)을 따릅니다.
 
-**현재 검증 중인 회귀:** CI VM 재부팅 후 격리 검증 증거를 자동 재생성하는 서비스의 실제 인수를 완료했습니다(21:08 KST). 증거가 없으면 CI는 차단됩니다. 새 구조화 채팅 응답의 실제 SDK 실패도 원인 확인 중이며, 이전 성공 기록과 별도로 `UNKNOWN`을 보존합니다. 이 체크포인트에서 모든 E2E가 닫혔다고 주장하지 않습니다.
+**최근 실제 검증:** CI VM 재부팅 후 격리 증거 자동 재생성(21:08), 새 CI 실행의 6단계 PASS·실시간 진행률·품질 로그 단계 일치(21:28), SDK 실패의 명시적 상태 복구와 새 대화·완료 설명 응답(21:28)을 확인했습니다. 과거 `UNKNOWN` 원본은 보존하고, 독립 근거에 따른 FAIL 확정을 별도 기록했습니다. 당시 공급자 오류 원문은 유실되어 근본 원인까지 복원한 것으로 주장하지 않습니다. 제품 전체 E2E와 앱 CD 인수는 아직 진행 중입니다. 21:35 이후 GitOps 저장소 접근이 404여서 Argo root도 Degraded로 관측됐으며, 저장소 변경 여부를 확인하기 전 배포를 차단했습니다. 진행 중 대화를 서버 재시작으로 끊은 추가 사례(GAP-042)는 원래 원격 PASS 응답을 재조회해 복구 중입니다.
 
 ## 시스템 구조
 

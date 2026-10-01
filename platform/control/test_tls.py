@@ -5,10 +5,18 @@ import importlib.util
 import tempfile
 import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from control.tls import manifests
+from control.tls import manifests, observer_manifests
 
 
 class TLSPlanTest(unittest.TestCase):
+    def test_workload_observer_is_namespace_read_only_and_never_owns_namespace(self):
+        value = observer_manifests(tenant='demo', app='demo', repo='https://github.com/example/gitops', cluster='gcp')
+        self.assertEqual('t-demo-demo', value['namespace'])
+        self.assertNotIn('CreateNamespace=true', value['application']['spec']['syncPolicy']['syncOptions'])
+        self.assertEqual({'Role', 'RoleBinding'}, {o['kind'] for o in value['resources']})
+        role = value['resources'][0]
+        self.assertTrue(all(r['verbs'] == ['get', 'list'] for r in role['rules']))
+        self.assertFalse({'secrets', 'pods/exec', 'pods/log'} & {v for r in role['rules'] for v in r['resources']})
     def test_https_render_is_trusted_opt_in_and_http_parent_remains(self):
         path = Path(__file__).resolve().parents[1] / 'render/render.py'
         spec = importlib.util.spec_from_file_location('tls_test_renderer', path)

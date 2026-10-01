@@ -33,11 +33,14 @@ class ReleaseTest(unittest.TestCase):
             'cluster': 'gcp', 'repo_url': 'https://github.com/example/gitops',
             'registry_prefix': 'registry.example/project/demo', 'tag': 'test1',
             'domain': '127-0-0-1.sslip.io', 'suffix': 'abcdef', 'storage_class': 'local-path',
-            'gitops_revision': 'd' * 40}
+            'gitops_revision': 'd' * 40, 'https_gateway': 'railshot-demo-demo'}
         self.plan = release.prepare_release(self.bundle, self.target)
         self.operation = {'id': str(uuid.uuid4()), 'allow_id': str(uuid.uuid4()),
             'tenant_id': 'demo', 'workspace_id': self.target['workspace_id'], 'generation': 1,
             'operation': 'deploy', 'plan_hash': self.plan['plan_hash']}
+        self.runtime = Mock(return_value={'version': 1, 'status': 'PASS', 'observed_at': 'synthetic', 'services': []})
+        self.external = Mock(return_value={'status': 'PASS', 'tls_verified': True,
+            'url': 'https://demo-abcdef.127-0-0-1.sslip.io/', 'scope': 'synthetic-test'})
 
     def write_manifest(self):
         manifest = {'version': 1, 'trust': release.bundle.TRUST, 'source_sha256': 'c' * 64,
@@ -55,7 +58,7 @@ class ReleaseTest(unittest.TestCase):
         with patch.object(release, 'GitHubWriter', return_value=writer), \
                 patch.object(release.bundle, 'publish', side_effect=publish_error, return_value=self.images) as publish:
             result = release.execute_release(self.plan, self.bundle, self.operation,
-                                             work_dir=self.root / 'run', observer=observer)
+                work_dir=self.root / 'run', observer=observer, runtime_observer=self.runtime, external_probe=self.external)
         return result, writer, publish, observer
 
     def test_prepare_is_deterministic_and_target_is_bound(self):
@@ -69,11 +72,14 @@ class ReleaseTest(unittest.TestCase):
                 release.execute_release(self.plan, self.bundle, {**self.operation, key: value}, work_dir=self.root / 'run', observer=Mock())
                 publish.assert_not_called()
 
-    def test_full_argo_receipt_does_not_claim_http_or_tls(self):
+    def test_lkg_requires_argo_runtime_and_external_verification(self):
         result, writer, publish, observer = self.run_release()
         self.assertEqual('PASS', result['status'])
-        self.assertEqual('NOT_VERIFIED', result['external_access'])
-        self.assertEqual('NOT_VERIFIED', result['pod_image_identity'])
+        self.assertEqual('PASS', result['external_access'])
+        self.assertEqual('PASS', result['pod_image_identity'])
+        self.assertEqual(2, self.runtime.call_count)
+        self.external.assert_called_once()
+        self.assertTrue((self.root / 'run/lkg.json').is_file())
         publish.assert_called_once()
         files = writer.create_commit.call_args.args[2]
         self.assertIn(self.images['web'], files['20-app.yaml'])
@@ -86,7 +92,7 @@ class ReleaseTest(unittest.TestCase):
         saved = (self.root / 'run/release.json').read_text()
         self.assertNotIn('synthetic secret', saved)
         with patch.object(release.bundle, 'publish') as publish, self.assertRaises(release.OperationError) as caught:
-            release.execute_release(self.plan, self.bundle, self.operation, work_dir=self.root / 'run', observer=Mock())
+            release.execute_release(self.plan, self.bundle, self.operation, work_dir=self.root / 'run', observer=Mock(), runtime_observer=self.runtime)
         self.assertEqual('STATE_INFLIGHT_UNCERTAIN', caught.exception.code)
         publish.assert_not_called()
 
@@ -105,7 +111,7 @@ class ReleaseTest(unittest.TestCase):
         writer = Mock(); writer.preflight.return_value = 'f' * 40
         with patch.object(release, 'GitHubWriter', return_value=writer), patch.object(release.bundle, 'publish') as publish:
             with self.assertRaises(release.OperationError) as caught:
-                release.execute_release(self.plan, self.bundle, self.operation, work_dir=self.root / 'run', observer=Mock())
+                release.execute_release(self.plan, self.bundle, self.operation, work_dir=self.root / 'run', observer=Mock(), runtime_observer=self.runtime)
         self.assertEqual('STATE_BINDING_MISMATCH', caught.exception.code)
         publish.assert_not_called()
 
@@ -114,6 +120,50 @@ class ReleaseTest(unittest.TestCase):
         (self.bundle / 'verdict.json').write_text(json.dumps(self.verdict)); self.write_manifest()
         with self.assertRaises(release.OperationError):
             release.prepare_release(self.bundle, self.target)
+
+    def test_external_failure_never_creates_lkg_or_url(self):
+        self.external.side_effect = release.fail('CD_OBSERVATION_UNAVAILABLE', 'external.observe', unknown=True)
+        with self.assertRaises(release.OperationError): self.run_release()
+        self.assertFalse((self.root / 'run/lkg.json').exists())
+        receipt = json.loads((self.root / 'run/release.json').read_text())
+        self.assertNotIn('deployment_url', receipt)
+        self.assertEqual('UNKNOWN', receipt['status'])
+
+    def test_workload_change_during_external_probe_never_creates_lkg(self):
+        self.runtime.side_effect = [{'status': 'PASS', 'services': [{'uid': 'first'}]},
+                                    {'status': 'PASS', 'services': [{'uid': 'replaced'}]}]
+        with self.assertRaises(release.OperationError): self.run_release()
+        self.assertFalse((self.root / 'run/lkg.json').exists())
+
+    def test_rollback_creates_a_new_app_only_commit_and_revalidates_without_publish(self):
+        self.run_release()
+        lkg = json.loads((self.root / 'run/lkg.json').read_text())
+        target = {**self.target, 'gitops_revision': 'f' * 40}
+        plan = release.prepare_rollback(lkg, target)
+        operation = {**self.operation, 'id': str(uuid.uuid4()), 'allow_id': str(uuid.uuid4()), 'plan_hash': plan['plan_hash']}
+        writer = Mock();writer.preflight.return_value = 'f' * 40;writer.create_commit.return_value = '9' * 40
+        observer = Mock(return_value=('PASS', None, {'metadata': {'uid': 'synthetic'}, 'status': {'sync': {'revision': '9' * 40}}}))
+        with patch.object(release, 'GitHubWriter', return_value=writer), patch.object(release.bundle, 'publish') as publish:
+            result = release.execute_rollback(plan, lkg, operation, work_dir=self.root / 'rollback',
+                observer=observer, runtime_observer=self.runtime, external_probe=self.external)
+        publish.assert_not_called()
+        writer.push.assert_called_once_with('9' * 40)
+        self.assertEqual(('f' * 40, 'apps/gcp/demo/demo', lkg['files']), writer.create_commit.call_args.args[:3])
+        self.assertEqual('9' * 40, result['revision'])
+        self.assertEqual('NOT_PERFORMED', result['database_restore'])
+        self.assertEqual(2, observer.call_count)
+
+    def test_tampered_lkg_and_cross_workspace_rollback_are_denied(self):
+        self.run_release();lkg = json.loads((self.root / 'run/lkg.json').read_text())
+        with self.assertRaises(release.OperationError):
+            release.prepare_rollback(lkg, {**self.target, 'workspace_id': 'another'})
+        lkg['files']['20-app.yaml'] += '# changed\n'
+        with self.assertRaises(release.OperationError): release.prepare_rollback(lkg, self.target)
+
+    def test_runtime_verifier_is_required_before_publication(self):
+        with patch.object(release.bundle, 'publish') as publish, self.assertRaises(release.OperationError):
+            release.execute_release(self.plan, self.bundle, self.operation, work_dir=self.root / 'run', observer=Mock())
+        publish.assert_not_called()
 
     def test_gitops_tree_only_changes_bound_app_and_ref_is_nonforce(self):
         writer = release.GitHubWriter(self.target['repo_url'])
@@ -145,6 +195,10 @@ class ReleaseTest(unittest.TestCase):
             actual = release.dispatch(request, config)
         self.assertEqual(self.plan, actual['plan'])
         network.assert_not_called()
+        ci_workspace = str(uuid.uuid4())
+        config['ci_workspace_id'] = ci_workspace
+        request['bundle']['relative_path'] = f'{ci_workspace}/{job}/bundle'
+        self.assertEqual(self.plan, release.dispatch(request, config)['plan'])
         request['bundle']['relative_path'] = '../other'
         with self.assertRaises(release.OperationError):
             release.dispatch(request, config)

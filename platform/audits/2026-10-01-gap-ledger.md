@@ -9,6 +9,26 @@
 - 원감사 단계는 수집과 재현·기록만 수행했다. 후속 사용자 승인으로 코드 수정과 별도 GCP CI VM의 실제 검증을 진행했다. 원감사 증거는 덮어쓰지 않는다.
 - 관리자 전용 증거 위치: `~/.local/state/railshot/audits/2026-10-01/gap-review-182949/`. `source-snapshot.json`에 파일 hash·branch·기준 commit·시각을 보존한다. 해당 hash는 서명이나 호스트 관리자에 대한 변조 방지 보장은 아니다.
 
+## AWS 교차 검증 — 2026-10-01 21:45 KST
+
+- 신규 AWS CI VM에서 GCP와 동일한 Ansible·worker·gate를 사용한 native 실행 `5860d0f2-e570-412d-9ca5-9b6e8d96b21a`가 81.3초, L0/L1/Q/L2/L4/L3 모두 PASS다. 이 실행의 source `b63125ef…`, bundle manifest `3f5fd70b3850861c2b234be5edeba4998dc19d800caa8a9466169980aa285792`를 독립 readback했다. 전체 스택 matrix를 AWS에서 재실행했다는 뜻은 아니다.
+- AWS CI Terraform 6개 생성 완료, SSH-over-SSM·cloud-init/Ansible 설치·실제 STOP timer 23:24:50 KST를 확인했다. 부팅 60 GiB 디스크는 유지된다. 인스턴스 계산비와 정지 후 디스크 비용을 구분한다.
+- CodeBuild source `301769c1…`의 첫 native Build `a300791f…`는 설치 후 publish에서 FAILED다. dispatcher는 UNKNOWN을 유지하며 자동 재실행하지 않았다. ECR 이미지 목록은 비어 있다. **GAP-043 (OPEN):** 공통 Skopeo helper가 실패 stderr를 버려 정확한 원인이 소실됐다. 공통 publisher의 제한된 진단 보존을 보완한 뒤 새 commit으로 원인을 검증한다. 실제 게시 PASS가 아니다.
+- private 증거: `gap-review-182949/aws-ci-codebuild/root-independent-acceptance.json`, `aws-ci-native.jsonl`(SHA256 `35fac07fca00bb686144d02006cc972467fc65fbacea36fe971c070e0bc2420f`), `codebuild-build-r1.json`.
+
+## 신규 운영 관측 — 2026-10-01 21:42 KST
+
+- **GitOps 접근 차단:** 앞서 커밋·Argo 관측이 성공한 `Jasmin-Softbank/railshot-gitops`가 GitHub API에서 404로 바뀌었다. 동일 계정의 `Jasmin`은 정상 접근된다. 현재 조직의 `railshot-apps`에는 이전 observer commit이 없어 동일 저장소의 rename으로 볼 근거가 없다. 사용자에게 변경 여부를 질문했으며 저장소 재생성·자동 대상 변경·앱 publish를 하지 않았다. 현재 Argo root는 `Unknown/Degraded`, ComparisonError `Repository not found`다. KEDA·cert-manager의 이전 동기화는 유지되지만 전체 root Healthy로 보고하지 않는다.
+- **GAP-042 (OPEN):** 서버 재시작 전에 CI job만 확인하고 진행 중인 사용자 SDK chat을 놓쳤다. 요청 `ce8be016…`는 dispatch 기록을 보존한 채 UNKNOWN으로 남았다. 종료 절차의 graceful drain 및 원격의 기존 terminal 결과를 명시적으로 수집·대조하는 복구 경로를 보완 중이다. 모델 재호출이나 원 이벤트 수정으로 해결하지 않는다.
+- **GCP desired/live 차이:** host HTTPS-only egress 규칙 2개는 Terraform 소스에 있으나 실제 적용되지 않았다. 현재 live firewall은 IAP SSH와 앱 HTTP/HTTPS ingress다. 컨테이너 네트워크 격리 검증과 클라우드 host egress 적용을 구분한다. private read-only plan의 2 create·VM metadata update가 남아 있으며 적용했다고 표시하지 않는다.
+
+## 실제 연결 후속 검증 — 2026-10-01 21:34 KST
+
+- **GAP-040 상태 분류·복구 결함 CLOSED:** native SDK의 `turn/completed` 실패를 FAIL로 보존하도록 수정했다. completion 미수신은 UNKNOWN을 유지한다. 기존 message `c0e6e750…`는 독립 SSM 종료/고정 SDK 분기 증거를 검증한 관리자 HTTP reconcile로 21:26에 FAIL 확정했다. 원래 UNKNOWN result/event는 바꾸지 않았다. 서버 재시작 후 입력 복구, 새 사용자 대화 `9fa07e01…`와 CI 완료 설명 `dc904050…`의 실제 SDK PASS를 확인했다. 당시 공급자 오류 원문은 소실돼 정확한 실패 원인은 미확정이며, schema 호환성 보완을 역사적 원인 증명으로 취급하지 않는다.
+- **GAP-041 (CLOSED, 발견 21:15 / 검증 21:28 KST):** 단계 journal이 먼저 진행된 뒤 도착하는 Q 로그를 L2로 잘못 붙였다. worker가 생산 단계·출력원별로 줄 버퍼를 보존하고 API가 일반 출력과 transport 진단을 마지막 gate로 추정하지 않도록 수정했다. worker13/HTTP29 회귀 PASS, 새 native CI `e8c8b298-a1c1-4cab-a141-ec80db0259fc` 6단계 PASS 및 브라우저 67→83→100%, Q lint/unit 로그의 Q 배치를 확인했다. 기존 오표기 이벤트는 수정하지 않았다. 전체 gate 6단계와 개별 lint/type/unit 세부 진행은 구별하며, 미관측 세부 단계는 생성하지 않는다.
+- native worker source `5ea4d5febb01bf5e23bf4f67df00d03bc33125a35c46641ef9d0dedd8e23890a`, SDK source `4d82bf8a568c644cadcb19a466cb652cc106e41096ae71bd4f4a8cac5333778d` 기준. private 증거는 `gap-remediation-190434/chat-reconcile-native.json`, `server-log-phase-r8.log`, `control-worker-log-phase-r7.log`, `console-ci-sdk-recovered.png`; 실제 CI bundle manifest `891343bbd37232491cddf4905fce011472441585bd90d705e430b358d9ba4f86`이다.
+- 대화가 Mermaid 텍스트만 반환해 그림이 렌더되지 않는 사례를 추가 확인했다. 기존 구조화 topology renderer를 사용하도록 응답 계약과 프롬프트를 정리 중이며, 실제 새 응답의 SVG 렌더는 아직 인수하지 않았다.
+
 ## 원래 담당 범위 우선 정리 — 2026-10-01 21:10 KST
 
 - 사용자 지시로 AWS/CI·Terraform·Argo bootstrap·LKG를 먼저 닫는다. 현재 콘솔 연결의 회귀도 해결하며, 기능 확장으로 완료 기준을 대체하지 않는다. CodeBuild·AWS 새 앱 스택·실제 CD·LKG는 미완료다.

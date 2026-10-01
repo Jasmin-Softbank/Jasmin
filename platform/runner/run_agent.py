@@ -67,13 +67,14 @@ def lifecycle(run, role, provider, model):
 
     def emit(kind, *, error=None, **fields):
         nonlocal seq
-        allowed = {"status", "sdk_status", "session_id", "thread_id", "turn_id"}
+        allowed = {"status", "sdk_status", "session_id", "thread_id", "turn_id", "sdk_failure"}
         if set(fields) - allowed:
             raise OperationError("INTERNAL_ERROR", component="runner", phase="observation")
         state.update(fields)
         seq += 1
         attributes = {key: state[key] for key in ("role", "provider", "model", "status", "sdk_status",
                       "session_id", "thread_id", "turn_id", "conversation_resume", "resume_reason")}
+        if state.get("sdk_failure"): attributes["sdk_failure"] = state["sdk_failure"]
         sdk_finished = kind == "session.finished"
         outcome = error.outcome if error else "PASS" if state["status"] == "completed" or sdk_finished else "RUNNING"
         phase = error.phase if error else "invoke" if kind.startswith(("session.", "turn.")) else "agent"
@@ -169,7 +170,16 @@ def strict_variant(schema):
 
     def walk(node):
         if isinstance(node, dict):
-            node.pop("contains", None)
+            # The canonical schema is still validated after generation. This wire
+            # projection omits constraints outside Structured Outputs' supported subset.
+            for keyword in ("$schema", "contains", "uniqueItems", "allOf"):
+                node.pop(keyword, None)
+            if "const" in node:
+                node["enum"] = [node.pop("const")]
+            if "enum" in node and "type" not in node:
+                values = node["enum"]
+                if all(type(value) is str for value in values): node["type"] = "string"
+                elif all(type(value) is int for value in values): node["type"] = "integer"
             if node.get("type") == "object" and "properties" in node:
                 req = set(node.get("required", []))
                 for k, v in node["properties"].items():
@@ -291,6 +301,69 @@ def codex_permissions(workspace, run, credential_home, read_deny):
     return tuple(values)
 
 
+def codex_failure_diagnostic(error):
+    """Keep typed codes and bounded safe explanation; never emit provider free text."""
+    message = getattr(error, "message", "") or ""
+    raw_info = getattr(error, "codex_error_info", None)
+    info = raw_info.model_dump(mode="json") if raw_info is not None else None
+    # The SDK union's field names/codes are trusted types; string values other
+    # than enum codes are not copied. Raw message remains represented by a hash.
+    codes = []
+    def collect(value):
+        if isinstance(value, str) and value.replace("_", "").isalnum() and len(value) <= 64:
+            codes.append(value)
+        elif isinstance(value, dict):
+            for key, child in value.items():
+                if key in ("http_status_code", "httpStatusCode") and type(child) is int:
+                    codes.append("http_" + str(child))
+                elif child is None and key.replace("_", "").isalnum(): codes.append(key)
+                elif key in ("root", "type", "code"): collect(child)
+        elif isinstance(value, list):
+            for child in value: collect(child)
+    collect(info)
+    category = "provider_terminal_failure"
+    safe_message = "The SDK reported a terminal failure; raw provider text is not exposed."
+    if "invalid" in message.lower() and "schema" in message.lower():
+        category = "invalid_output_schema"
+        safe_message = "The provider rejected the structured output schema."
+    return {"category": category, "codes": sorted(set(codes))[:8], "message": safe_message,
+            "message_sha256": hashlib.sha256(message.encode()).hexdigest()}
+
+
+def collect_codex_turn(turn):
+    """Use public typed stream notifications: run() raises before returning failed turns."""
+    from openai_codex import TurnResult
+    from openai_codex.models import ItemCompletedNotification, ThreadTokenUsageUpdatedNotification, TurnCompletedNotification
+    from openai_codex.generated.v2_all import AgentMessageThreadItem, MessagePhase
+    completed = None; items = []; usage = None
+    stream = turn.stream()
+    try:
+        for event in stream:
+            payload = event.payload
+            if isinstance(payload, ItemCompletedNotification) and payload.turn_id == turn.id:
+                items.append(payload.item)
+            elif isinstance(payload, ThreadTokenUsageUpdatedNotification) and payload.turn_id == turn.id:
+                usage = payload.token_usage
+            elif isinstance(payload, TurnCompletedNotification) and payload.turn.id == turn.id:
+                completed = payload.turn
+    finally:
+        stream.close()
+    if completed is None:
+        raise OperationError("SDK_OUTCOME_UNKNOWN", component="runner", phase="invoke",
+                             outcome="UNKNOWN", side_effect="unknown", retry_policy="after_reconcile")
+    final = fallback = None
+    for wrapped in reversed(items):
+        item = wrapped.root if hasattr(wrapped, "root") else wrapped
+        if isinstance(item, AgentMessageThreadItem):
+            if item.phase == MessagePhase.final_answer:
+                final = item.text; break
+            if item.phase is None and fallback is None: fallback = item.text
+    return TurnResult(id=completed.id, status=completed.status, error=completed.error,
+                      started_at=completed.started_at, completed_at=completed.completed_at,
+                      duration_ms=completed.duration_ms, final_response=final if final is not None else fallback,
+                      items=items, usage=usage)
+
+
 def run_codex(cfg, system, task, schema, workspace, run, read_deny=None, emit=None):
     from importlib.metadata import version
     from openai_codex import ApprovalMode, Codex, CodexConfig
@@ -335,11 +408,13 @@ def run_codex(cfg, system, task, schema, workspace, run, read_deny=None, emit=No
             emit("session.started", session_id=thread.id, thread_id=thread.id)
             turn = thread.turn(task, output_schema=strict_variant(schema))
             emit("turn.started", turn_id=turn.id)
-            result = turn.run()
+            result = collect_codex_turn(turn)
             status = getattr(result.status, "value", result.status)
             failure = OperationError("SDK_EXECUTION_FAILED", component="runner", phase="invoke",
                                      outcome="FAIL", side_effect="completed") if status != "completed" else None
-            emit("session.finished", turn_id=result.id, sdk_status=status, error=failure)
+            diagnostic = codex_failure_diagnostic(result.error) if failure else None
+            emit("session.finished", turn_id=result.id, sdk_status=status, error=failure,
+                 **({"sdk_failure": diagnostic} if diagnostic else {}))
             if failure:
                 raise failure
             try:
@@ -489,6 +564,7 @@ def execute(a):
     status = "unknown" if error and error.outcome == "UNKNOWN" else "failed" if error else "completed"
     meta.update({key: state[key] for key in ("run_id", "attempt_id", "session_id", "thread_id", "turn_id",
                                            "conversation_resume", "resume_reason")})
+    if state.get("sdk_failure"): meta["sdk_failure"] = state["sdk_failure"]
     meta.update(status=status, sdk_status=state["sdk_status"], events_file=f"{a.role}-events.jsonl",
                 session_file=f"{a.role}-session.json")
     record = {"role": a.role, "repair_scope": a.repair_scope, "provider": provider, "model": profile["providers"][provider].get("model"),

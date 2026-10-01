@@ -137,21 +137,23 @@ class Bridge:
     def emit(self, kind, **data):
         self.emit_raw(redact({'type': kind, **{k: self.request[k] for k in ('workspace_id', 'job_id', 'generation')}, **data}))
 
-    def log(self, stream, chunk):
+    def log(self, stream, chunk, *, phase=None, source=None):
         self.total += len(chunk)
         if self.total > MAX_OUTPUT:
             raise OutputLimitError(MAX_OUTPUT)
-        data = self.pending.get(stream, b'') + chunk
-        lines = data.split(b'\n'); self.pending[stream] = lines.pop()
+        phase = phase or self.request['operation']
+        key = (stream, phase, source)
+        data = self.pending.get(key, b'') + chunk
+        lines = data.split(b'\n'); self.pending[key] = lines.pop()
         for line in lines:
-            self.emit('log', stream=stream, text=line.decode(errors='replace')[:65536])
-        if len(self.pending[stream]) > 65536:
-            self.pending[stream] = b''
-            self.emit('log', stream=stream, text='[oversized line omitted]')
+            self.emit('log', stream=stream, phase=phase, text=line.decode(errors='replace')[:65536])
+        if len(self.pending[key]) > 65536:
+            self.pending[key] = b''
+            self.emit('log', stream=stream, phase=phase, text='[oversized line omitted]')
 
     def flush(self):
-        for stream, line in self.pending.items():
-            if line: self.emit('log', stream=stream, text=line.decode(errors='replace'))
+        for (stream, phase, _), line in self.pending.items():
+            if line: self.emit('log', stream=stream, phase=phase, text=line.decode(errors='replace'))
         self.pending.clear()
 
     def tail_quality(self, run):
@@ -165,7 +167,8 @@ class Bridge:
                 stream.seek(self.offsets.get(path, 0))
                 data = stream.read(MAX_OUTPUT - self.total + 1)
                 self.offsets[path] = stream.tell()
-            if data: self.log('gate', data)
+            # File provenance, never whichever stage happened to arrive last.
+            if data: self.log('gate', data, phase='Q' if path.name.startswith('quality-') else 'ci', source=str(path))
 
     def tail_progress(self, run):
         path = run / 'gate-0/progress.jsonl'

@@ -8,6 +8,39 @@ outside tenant Applications. A successful render is not a certificate or ingress
 import re
 
 
+def observer_manifests(*, tenant, app, repo, cluster):
+    """Platform-owned get/list role; never creates/adopts the tenant namespace."""
+    if (not re.fullmatch(r'[a-z0-9]{1,20}', tenant)
+            or not re.fullmatch(r'[a-z][a-z0-9-]{1,28}[a-z0-9]', app)
+            or not re.fullmatch(r'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repo)
+            or not re.fullmatch(r'[a-z][a-z0-9-]{1,39}', cluster)):
+        raise ValueError('registered observer target required')
+    namespace = f't-{tenant}-{app}'
+    name = f'railshot-observer-{tenant}-{app}'
+    if len(name) > 63:
+        raise ValueError('observer name too long')
+    meta = {'name': 'railshot-cd-observer', 'namespace': namespace,
+            'annotations': {'argocd.argoproj.io/sync-options': 'Prune=confirm,Delete=false'}}
+    app_resource = {'apiVersion': 'argoproj.io/v1alpha1', 'kind': 'Application',
+        'metadata': {'name': name, 'namespace': 'argocd'},
+        'spec': {'project': 'default', 'source': {'repoURL': repo, 'targetRevision': 'main',
+            'path': f'clusters/{cluster}/observers/{namespace}'},
+            'destination': {'server': 'https://kubernetes.default.svc', 'namespace': namespace},
+            'syncPolicy': {'automated': {'prune': False, 'selfHeal': True},
+                'retry': {'limit': 5, 'backoff': {'duration': '5s', 'factor': 2, 'maxDuration': '60s'}},
+                'syncOptions': ['ServerSideApply=true']}}}
+    role = {'apiVersion': 'rbac.authorization.k8s.io/v1', 'kind': 'Role', 'metadata': meta,
+        'rules': [{'apiGroups': ['apps'], 'resources': ['deployments', 'replicasets'], 'verbs': ['get', 'list']},
+                  {'apiGroups': [''], 'resources': ['pods', 'services'], 'verbs': ['get', 'list']},
+                  {'apiGroups': ['discovery.k8s.io'], 'resources': ['endpointslices'], 'verbs': ['get', 'list']},
+                  {'apiGroups': ['gateway.networking.k8s.io'], 'resources': ['httproutes'], 'verbs': ['get', 'list']}]}
+    binding = {'apiVersion': 'rbac.authorization.k8s.io/v1', 'kind': 'RoleBinding', 'metadata': meta,
+        'subjects': [{'kind': 'ServiceAccount', 'name': 'railshot-cd-observer', 'namespace': 'argocd'}],
+        'roleRef': {'apiGroup': 'rbac.authorization.k8s.io', 'kind': 'Role', 'name': 'railshot-cd-observer'}}
+    return {'application': app_resource, 'resources': [role, binding], 'namespace': namespace,
+            'status': 'RENDERED_NOT_APPLIED', 'namespace_creation': 'NOT_OWNED'}
+
+
 def manifests(*, tenant, app, host, production=False):
     if (not re.fullmatch(r'[a-z0-9]{1,20}', tenant)
             or not re.fullmatch(r'[a-z][a-z0-9-]{1,28}[a-z0-9]', app)

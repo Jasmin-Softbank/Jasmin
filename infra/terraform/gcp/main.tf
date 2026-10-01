@@ -3,6 +3,9 @@ locals {
   bundle_sha256 = sha256(jsonencode(var.bootstrap_files))
   labels        = { project = "railshot", environment = "poc", component = "app-node", managed_by = "terraform" }
   web_ports     = concat(var.allow_http ? ["80"] : [], var.allow_https ? ["443"] : [])
+  # OAuth scope permits the metadata credential flow; repository IAM is owned
+  # separately and must grant only the registered Artifact Registry repository.
+  node_oauth_scopes = var.enable_gcp_registry_pull ? ["https://www.googleapis.com/auth/devstorage.read_only"] : []
   iap_ssh = var.allow_iap_ssh ? {
     source_ranges = ["35.235.240.0/20"]
     ports         = ["22"]
@@ -147,7 +150,7 @@ resource "google_compute_instance" "node" {
   }
   service_account {
     email  = google_service_account.node.email
-    scopes = []
+    scopes = local.node_oauth_scopes
   }
   shielded_instance_config {
     enable_secure_boot          = true

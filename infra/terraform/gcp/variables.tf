@@ -98,6 +98,12 @@ variable "allow_http" {
   default = false
 }
 
+variable "enable_gcp_registry_pull" {
+  type        = bool
+  default     = false
+  description = "Opt in to storage read-only OAuth scope on this VM. Requires separately registered repository-scoped reader IAM and a verified kubelet credential provider; scope alone does not prove private image pulls. Updating an existing VM requires an explicit stop/start maintenance operation."
+}
+
 variable "allow_https" {
   type    = bool
   default = false
