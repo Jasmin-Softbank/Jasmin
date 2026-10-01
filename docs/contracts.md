@@ -1,6 +1,6 @@
 # 계층별 메서드와 데이터 전달 규약
 
-설계 계약 v0.2 · 2026-10-01. 초기 서버 중심 기능을 병렬 구현하기 위한 내부 계약입니다. 상위 Provider Interface의 명세는 아직 미정이므로 HTTP 경로와 본문은 연결 초안입니다. 실제 코드 구현과 API 호출 시험은 미실행입니다.
+설계 계약 v0.2 · 2026-10-01. 초기 서버 중심 기능을 병렬 구현하기 위한 내부 계약입니다. 상위 Provider Interface의 명세는 아직 미정이므로 HTTP 경로와 본문은 연결 초안입니다. 이 규약에 따른 초기 코드는 src에 구현했습니다. 모의 공급자 기반 HTTP 시험과 실제 OpenStack 검증은 구분하며, 결과는 validation.md에 기록합니다.
 
 ## 적용 범위와 용어
 
@@ -35,6 +35,7 @@ T = TypeVar("T")
 ServerAction = Literal["start", "stop", "reboot"]
 ResourceAction = Literal["create", "delete", "start", "stop", "reboot"]
 
+
 @dataclass(frozen=True)
 class RequestContext:
     request_id: str
@@ -42,21 +43,25 @@ class RequestContext:
     project_id: str
     provider_id: str
 
+
 @dataclass(frozen=True)
 class PageRequest:
     limit: int = 20
     marker: str | None = None
+
 
 @dataclass(frozen=True)
 class Page(Generic[T]):
     items: tuple[T, ...]
     next_marker: str | None
 
+
 @dataclass(frozen=True)
 class Address:
     network: str
     address: str
     version: Literal[4, 6]
+
 
 @dataclass(frozen=True)
 class Server:
@@ -66,11 +71,13 @@ class Server:
     status: str
     addresses: tuple[Address, ...]
 
+
 @dataclass(frozen=True)
 class Image:
     id: str
     name: str
     status: str
+
 
 @dataclass(frozen=True)
 class Flavor:
@@ -80,12 +87,14 @@ class Flavor:
     ram_mb: int
     disk_gb: int
 
+
 @dataclass(frozen=True)
 class Network:
     id: str
     name: str
     status: str
     shared: bool
+
 
 @dataclass(frozen=True)
 class CreateServerSpec:
@@ -94,10 +103,12 @@ class CreateServerSpec:
     flavor_id: str
     network_ids: tuple[str, ...]
 
+
 @dataclass(frozen=True)
 class Accepted:
     resource_id: str
     action: ResourceAction
+
 
 @dataclass(frozen=True)
 class DeleteResult:
@@ -151,7 +162,7 @@ provider_id와 project_id는 요청 본문에서 받지 않습니다. 컨텍스�
 | HealthResponse | status는 ok 고정 |
 | ErrorResponse | 아래 공통 오류의 error 객체 |
 
-본문의 알 수 없는 필드는422로 거부합니다. 목록 쿼리는 limit/marker만 허용하며, 알려지지 않은 쿼리도422로 거부합니다. 경로 ID와 쿼리 타입을 검증합니다. live를 제외한 모든 경로에 Authorization: Bearer 인증을 요구합니다. 누락·불일치는401이며 WWW-Authenticate: Bearer를 반환합니다. 인증 실패가 업무 입력 검증보다 우선하고, 외부 호출이 없어야 합니다.
+본문의 알 수 없는 필드는422로 거부합니다. 목록 쿼리는 limit/marker만 허용하며, 알려지지 않은 쿼리도422로 거부합니다. 경로 ID와 쿼리 타입을 검증합니다. live를 제외한 업무 경로에 Authorization: Bearer 인증을 요구합니다. 기본적으로 문서 경로는 비활성화합니다. 개발용 docs_enabled=true를 명시하면 /docs·/openapi.json·/docs/oauth2-redirect는 인증 없이 제공하고, 업무 API에는 계속 인증을 요구합니다. 누락·불일치는401이며 WWW-Authenticate: Bearer를 반환합니다. 인증 실패가 업무 입력 검증보다 우선하고, 외부 호출이 없어야 합니다.
 
 모든 응답에 X-Request-ID를 포함합니다.202에는 Location: /api/v1/servers/{resource_id}를 넣습니다. DELETE의 already_absent=true는204/본문 없음, false는 action=delete의202로 변환합니다. 내부 Accepted에는 HTTP 상태 코드·Location·request_id를 중복 저장하지 않습니다.
 
@@ -162,6 +173,7 @@ provider_id와 project_id는 요청 본문에서 받지 않습니다. 컨텍스�
 ```python
 from typing import Protocol
 
+
 class ComputeProvider(Protocol):
     def list_servers(self, ctx: RequestContext, page: PageRequest) -> Page[Server]: ...
     def get_server(self, ctx: RequestContext, server_id: str) -> Server: ...
@@ -169,11 +181,13 @@ class ComputeProvider(Protocol):
     def delete_server(self, ctx: RequestContext, server_id: str) -> DeleteResult: ...
     def act_server(self, ctx: RequestContext, server_id: str, action: ServerAction) -> Accepted: ...
 
+
 class CatalogProvider(Protocol):
     def list_images(self, ctx: RequestContext, page: PageRequest) -> Page[Image]: ...
     def list_flavors(self, ctx: RequestContext, page: PageRequest) -> Page[Flavor]: ...
     def list_networks(self, ctx: RequestContext, page: PageRequest) -> Page[Network]: ...
     def validate_create_references(self, ctx: RequestContext, spec: CreateServerSpec) -> None: ...
+
 
 class HealthProvider(Protocol):
     def check_ready(self, ctx: RequestContext) -> bool: ...
@@ -296,3 +310,7 @@ request_id는 HTTP 요청 추적용이며 작업 ID나 중복 방지 키가 아�
 이 문서의 v0.2는 설계 문서 버전이며 URL의 /api/v1과 다릅니다. 상위 Provider Interface 확정 시 우선 api 변환 규칙을 조정하고, 의미가 달라지는 변경만 domain/ports까지 반영합니다.
 
 검증 항목은 입력 변환, 프로젝트 경계, 참조 검증 순서,202/204 처리, 외부 오류 변환, 결과 불명확 처리, 페이지 경계, 비밀 값 미노출입니다. 코드 구현과 실제 HTTP 호출 검증을 통과하기 전에는 계약의 구현 완료로 보고하지 않습니다.
+
+## 구현 위치
+
+실제 코드와 Git 저장소는 프로젝트의 dev 디렉토리에 있습니다. 초기 계획의 src/control_plane 경로는 dev/src/control_plane을 의미합니다. 구현 및 실행 방법은 [README](../README.md), 검증 내역은 [검증 기록](validation.md)을 참조합니다.
