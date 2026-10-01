@@ -1,0 +1,6 @@
+Nuvlet Bot / 누블렛 — working product name; trademark clearance not established.
+Generated with the built-in image generation tool on 2026-10-01.
+
+Original product pet for Team Jasmin: a small mint cloud creature with an asymmetric three-lobe body, two small feet, one flipper raised, tiny graphite eyes and a subtle smile. One jasmine-white five-petal flower and pale green bud on its upper-left lobe. Premium soft matte clay 3D, restrained mint #A8D8C2, white #F7F9F5 and dark green #234B3D. Centered complete body in a square composition, true transparent background, no floor or cast shadow. Distinctive silhouette readable at small size; no robot, pink, text, logo, frame or scenery. Original generation without reference image.
+
+The repository PNG is the generated source without visual modification. The inline UI embeds an exact lossless WebP encoding to keep the fragment compact.

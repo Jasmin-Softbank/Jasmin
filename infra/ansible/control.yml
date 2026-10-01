@@ -1,0 +1,282 @@
+# Administrator's private Codex runtime. No tenant code, public API, GUI, or app cluster.
+# Official SDK/runtime: https://github.com/openai/codex/tree/rust-v0.159.3/sdk/python
+- name: Bootstrap private operator Codex runtime
+  hosts: localhost
+  connection: local
+  become: true
+  vars:
+    railshot_region: ap-northeast-2
+    codex_version: 0.159.3
+    codex_home: /var/lib/railshot-agent/.codex
+    codex_venv: /opt/railshot/codex
+    railshot_state_dir: /var/lib/railshot
+  tasks:
+    - name: Install runtime prerequisites
+      ansible.builtin.apt:
+        name: [python3-venv, python3-boto3, git, ca-certificates, snapd]
+        state: present
+        update_cache: true
+
+    - name: Ensure SSM agent is installed
+      ansible.builtin.command: snap install amazon-ssm-agent --classic
+      args:
+        creates: /snap/amazon-ssm-agent/current
+
+    - name: Enable SSM-only administration
+      ansible.builtin.systemd_service:
+        name: snap.amazon-ssm-agent.amazon-ssm-agent.service
+        enabled: true
+        state: started
+
+    - name: Create unprivileged operator service account
+      ansible.builtin.user:
+        name: railshot-agent
+        system: true
+        home: /var/lib/railshot-agent
+        shell: /bin/bash
+        create_home: true
+
+    - name: Create private operator directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: railshot-agent
+        group: railshot-agent
+        mode: '0700'
+      loop: [/var/lib/railshot-agent, /var/lib/railshot-agent/workspace, '{{ codex_home }}']
+
+    - name: Create administrator config and installation directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      loop: [/etc/railshot, /opt/railshot, /var/lib/railshot]
+
+    - name: Record nonsecret deployment configuration
+      ansible.builtin.copy:
+        dest: /etc/railshot/control.yml
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          purpose: private-administrator-poc
+          region: {{ railshot_region }}
+          codex_home: {{ codex_home }}
+          codex_version: {{ codex_version }}
+          auth_parameter: /railshot/codex/operator-primary/auth
+
+    # Both official wheels are pinned by version AND PyPI SHA256; no Node required.
+    - name: Download official SDK and its matching native CLI wheel
+      ansible.builtin.get_url:
+        url: '{{ item.url }}'
+        dest: '/opt/railshot/{{ item.filename }}'
+        checksum: 'sha256:{{ item.sha256 }}'
+        mode: '0644'
+      loop:
+        - filename: openai_codex-0.159.3-py3-none-any.whl
+          url: https://files.pythonhosted.org/packages/6f/24/524be7ef0fb11e587a506514f4e9b70473a1b27ba745b1afc660ced25850/openai_codex-0.159.3-py3-none-any.whl
+          sha256: 5148065fb13cfb3f106c6493f3a5dc26457da98f6350e193e85eda8b65263b8f
+        - filename: openai_codex_cli_bin-0.159.3-py3-none-manylinux_2_17_x86_64.whl
+          url: https://files.pythonhosted.org/packages/35/c2/1a3d563c746fdd132b6739943acd122b8b35156c6d10446329f9526275f6/openai_codex_cli_bin-0.159.3-py3-none-manylinux_2_17_x86_64.whl
+          sha256: 0e6f205d6fe623eef20a7f3775f030a9ee949fedc993870275af436e1e0887de
+
+    - name: Install pinned SDK and native CLI into root-owned virtual environment
+      ansible.builtin.pip:
+        name:
+          - /opt/railshot/openai_codex_cli_bin-0.159.3-py3-none-manylinux_2_17_x86_64.whl
+          - /opt/railshot/openai_codex-0.159.3-py3-none-any.whl
+          - PyYAML==6.0.3
+          - jsonschema==4.26.0
+        virtualenv: '{{ codex_venv }}'
+        virtualenv_command: /usr/bin/python3 -m venv
+        extra_args: '--only-binary=:all:'
+
+    - name: Install Codex CLI entry point using the same SDK runtime
+      ansible.builtin.copy:
+        dest: /usr/local/bin/codex
+        owner: root
+        group: root
+        mode: '0755'
+        content: |
+          #!{{ codex_venv }}/bin/python
+          import os
+          import sys
+          from codex_cli_bin import bundled_codex_path, bundled_path_dir
+          os.environ.setdefault('CODEX_HOME', '{{ codex_home }}')
+          tools = bundled_path_dir()
+          if tools:
+              os.environ['PATH'] = str(tools) + os.pathsep + os.environ.get('PATH', '')
+          binary = str(bundled_codex_path())
+          os.execv(binary, [binary, *sys.argv[1:]])
+
+    - name: Set operator Codex home for interactive sessions
+      ansible.builtin.copy:
+        dest: /var/lib/railshot-agent/.profile
+        owner: railshot-agent
+        group: railshot-agent
+        mode: '0600'
+        content: |
+          export CODEX_HOME={{ codex_home }}
+          export PATH={{ codex_venv }}/bin:/usr/local/bin:/usr/bin:/bin
+
+    - name: Install one-parameter credential importer
+      ansible.builtin.copy:
+        dest: /usr/local/sbin/railshot-import-codex-auth
+        owner: root
+        group: root
+        mode: '0700'
+        content: |
+          #!/usr/bin/python3
+          """Import once; preserve VM-refreshed auth on subsequent boots. Never log values."""
+          import json
+          import os
+          import pwd
+          import tempfile
+          from pathlib import Path
+          import boto3
+          from botocore.exceptions import ClientError
+
+          target = Path('{{ codex_home }}/auth.json')
+          status = Path('{{ railshot_state_dir }}/codex-auth-status.json')
+          def mark(state):
+              status.write_text(json.dumps({'state': state, 'authenticated_call_verified': False}) + '\n')
+              status.chmod(0o644)
+
+          if target.is_symlink():
+              mark('credential_import_failed')
+              raise SystemExit(1)
+          if target.is_file():
+              account = pwd.getpwnam('railshot-agent')
+              target.chmod(0o600)
+              os.chown(target, account.pw_uid, account.pw_gid)
+              mark('local_auth_preserved_unverified')
+              raise SystemExit(0)
+          try:
+              result = boto3.client('ssm', region_name='{{ railshot_region }}').get_parameter(
+                  Name='/railshot/codex/operator-primary/auth', WithDecryption=True)
+          except ClientError as exc:
+              if exc.response.get('Error', {}).get('Code') == 'ParameterNotFound':
+                  mark('pending_parameter')
+                  raise SystemExit(0)
+              mark('parameter_read_failed')
+              raise SystemExit(1)
+          except Exception:
+              mark('parameter_read_failed')
+              raise SystemExit(1)
+          try:
+              if result['Parameter']['Type'] != 'SecureString':
+                  raise ValueError('SecureString required')
+              raw = result['Parameter']['Value']
+              value = json.loads(raw)
+              tokens = value.get('tokens') or {}
+              if value.get('auth_mode') != 'chatgpt' or not all(
+                  isinstance(tokens.get(k), str) and tokens[k] for k in ('access_token', 'refresh_token')
+              ):
+                  raise ValueError('ChatGPT auth required')
+              account = pwd.getpwnam('railshot-agent')
+              fd, name = tempfile.mkstemp(prefix='.auth-', dir=target.parent)
+              try:
+                  with os.fdopen(fd, 'w') as stream:
+                      os.fchmod(stream.fileno(), 0o600)
+                      os.fchown(stream.fileno(), account.pw_uid, account.pw_gid)
+                      stream.write(raw)
+                      stream.flush()
+                      os.fsync(stream.fileno())
+                  os.replace(name, target)
+              finally:
+                  Path(name).unlink(missing_ok=True)
+          except Exception:
+              mark('credential_import_failed')
+              raise SystemExit(1)
+          mark('imported_unverified')
+
+    - name: Import auth if the exact SSM parameter exists
+      ansible.builtin.command: /usr/local/sbin/railshot-import-codex-auth
+      no_log: true
+      changed_when: false
+
+    - name: Inspect existing cost deadline
+      ansible.builtin.stat:
+        path: /var/lib/railshot/stop-at
+      register: stop_deadline
+
+    - name: Calculate first-install absolute stop deadline
+      ansible.builtin.command: date -u -d '+72 hours' '+%Y-%m-%d %H:%M:%S UTC'
+      register: new_deadline
+      changed_when: false
+      when: not stop_deadline.stat.exists
+
+    - name: Preserve deadline across reboot and reconfiguration
+      ansible.builtin.copy:
+        dest: /var/lib/railshot/stop-at
+        content: '{{ new_deadline.stdout }}'
+        owner: root
+        group: root
+        mode: '0644'
+      when: not stop_deadline.stat.exists
+
+    - name: Read nonsecret stop deadline
+      ansible.builtin.slurp:
+        src: /var/lib/railshot/stop-at
+      register: fixed_deadline
+
+    - name: Install VM stop service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/railshot-poc-stop.service
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=Stop administrator PoC VM while retaining its EBS disk
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/bin/systemctl poweroff
+
+    - name: Install persistent 72-hour cost timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/railshot-poc-stop.timer
+        mode: '0644'
+        content: |
+          [Unit]
+          Description=Absolute first-install PoC deadline
+          [Timer]
+          OnCalendar={{ fixed_deadline.content | b64decode | trim }}
+          Persistent=true
+          AccuracySec=1min
+          Unit=railshot-poc-stop.service
+          [Install]
+          WantedBy=timers.target
+
+    - name: Enable automatic VM stop
+      ansible.builtin.systemd_service:
+        name: railshot-poc-stop.timer
+        daemon_reload: true
+        enabled: true
+        state: started
+
+    - name: Verify installed SDK version without authentication or model calls
+      ansible.builtin.command:
+        argv:
+          - '{{ codex_venv }}/bin/python'
+          - -c
+          - "from importlib.metadata import version; from openai_codex import Codex; import yaml, jsonschema; assert version('openai-codex') == '{{ codex_version }}'; assert version('openai-codex-cli-bin') == '{{ codex_version }}'"
+      changed_when: false
+
+    - name: Verify CLI launches as the service user
+      ansible.builtin.command: /usr/local/bin/codex --version
+      become_user: railshot-agent
+      environment:
+        CODEX_HOME: '{{ codex_home }}'
+      register: cli_version
+      changed_when: false
+      failed_when: "cli_version.rc != 0 or codex_version not in cli_version.stdout"
+
+    - name: Record installation readiness only
+      ansible.builtin.copy:
+        dest: /var/lib/railshot/bootstrap-ready.json
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          {"installation":"verified","codex_version":"{{ codex_version }}","model_request_verified":false,"purpose":"private-administrator-poc"}

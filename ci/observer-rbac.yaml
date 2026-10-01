@@ -1,0 +1,33 @@
+# Optional trusted CD worker identity, installed by an administrator on its registered cluster.
+# Never mount this identity or a cluster-admin kubeconfig in the user CI runner.
+# Supply a short-lived projected token/credential to the worker; no token Secret is created here.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: railshot-cd-observer
+  namespace: argocd
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: railshot-cd-observer
+  namespace: argocd
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: railshot-cd-observer
+  namespace: argocd
+subjects:
+  - kind: ServiceAccount
+    name: railshot-cd-observer
+    namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: railshot-cd-observer

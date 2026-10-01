@@ -10,14 +10,14 @@ What "deployable on Jasmin" means. Agents aim at this contract, the gate enforce
 | `.dockerignore` | Keeps secrets, VCS data and build junk out of the context |
 | `.jasmin/jasmin.yaml` | Workload spec (`schemas/jasmin.schema.json`) |
 
-Nothing else. Kubernetes manifests, Terraform values, DNS records and certificates are rendered by the platform. The exact path rules are in `paths.yaml`.
+By default only these packaging files are writable. A trusted operator may enable bounded source repair for observed Q checker failures; `paths.yaml` remains the exact authority and tests, manifests, locks, migrations, policy and generated files stay protected. Kubernetes manifests, Terraform values, DNS records and certificates are rendered by the platform.
 
 ## 2. Container rules
 
 | ID | Rule | Gate layer |
 |---|---|---|
 | C1 | Builds with `docker buildx build --platform linux/amd64` from the declared context. | L2 build |
-| C2 | Base images come from the allowlist in §5. The final stage is a slim, distroless or unprivileged variant. The platform resolves tags to digests. | L1 static |
+| C2 | Base images come from the allowlist in §5. The final stage is a slim, distroless or unprivileged variant. L2 records built image IDs for scan, runtime and artifact release; automatic rewriting of FROM tags to digests is not implemented. | L1 static / L2 evidence |
 | C3 | The final stage sets `USER` to a numeric non-root UID of 10000 or higher (default 65532). | L1, L4 |
 | C4 | The process listens on `0.0.0.0` and on the port declared in `jasmin.yaml` (1024–65535). | L3 readiness |
 | C5 | The declared health path answers HTTP 2xx or 3xx within 60 s of start, without auth and without side effects. The platform probe decides; a Dockerfile `HEALTHCHECK` is ignored. | L3 readiness |
@@ -54,9 +54,9 @@ The user never writes these. They follow the Kubernetes Pod Security Standards "
 | Routing | HTTPRoute on `<app>-<random6>.<platform-domain>`, one path rule per `route`, TLS from the platform's wildcard certificate |
 | Image | GHCR, referenced by digest |
 | Rollout | RollingUpdate with maxUnavailable 0; smoke test on the public URL after sync; last known good (LKG) restore on failure |
-| Database (when requested) | CloudNativePG `Cluster` per app (PostgreSQL 17). The app gets `DATABASE_URL` for a DML-only runtime role; only the migration Job gets `MIGRATION_DATABASE_URL` (owner). Never a superuser |
+| Database (when requested) | CloudNativePG `Cluster` per app (PostgreSQL 17). The app gets `DATABASE_URL` for a DML-only runtime role; only the migration Job gets owner `DATABASE_URL` and `MIGRATION_DATABASE_URL` (same-image tool compatibility). Never a superuser |
 | Migrations (when `migrate.command` is set) | Argo CD Sync-phase hook Job at sync-wave 1 (database wave -1, app wave 2) with the app image, no retries, 5 min limit, failed Jobs kept as evidence; migrations must be idempotent because hooks rerun on every sync; the gate runs them first against an ephemeral `postgres:17` |
-| Release strategy | RollingUpdate by default; `strategy: canary` or `bluegreen` renders an Argo Rollouts `Rollout` with Gateway API traffic splitting and a Prometheus AnalysisTemplate (5xx rate, p95 latency) |
+| Release strategy | RollingUpdate only. Canary/bluegreen are rejected by admission until a verified controller, traffic routing, analysis and capacity profile exist |
 | Logs | stdout and stderr only |
 
 ## 5. Base image allowlist
@@ -68,11 +68,11 @@ The user never writes these. They follow the Kubernetes Pod Security Standards "
 | Go, Rust (build stage) | `golang:1`, `rust:1` |
 | Final stage, static binaries | `gcr.io/distroless/static-debian12`, `gcr.io/distroless/base-debian12` |
 | Static web | `nginxinc/nginx-unprivileged:stable-alpine` |
-| JVM | `eclipse-temurin:21-jre` |
+| JVM | `eclipse-temurin:21-jre` runtime; reviewed Maven/Gradle builder profiles in `catalog.yaml` |
 
 ## 6. Forbidden changes
 
 - Editing, renaming or deleting tests, CI configuration, lockfiles, dependency manifests, policies, this contract, or agent instruction files (`paths.yaml`).
 - Weakening a check: `|| true`, `exit 0` in commands, skipped tests, `--no-verify`, `.trivyignore`, lower scan severity, a health path that stays green while the app is down.
-- Changing application source code (team decision D1 pending; forbidden until then).
+- Changing application source code without trusted source-repair scope and an observed eligible Q failure. Scope cannot be granted by uploaded code or the model.
 - Fetching and executing remote scripts during the build (`curl … | sh`).

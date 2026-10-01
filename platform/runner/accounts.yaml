@@ -1,0 +1,30 @@
+# Administrator-owned Codex account policy read by control/state.py. Never put tokens here.
+# Local sticky bindings and global account queue limits are enforced; provider VM allocation,
+# credential resolution and dispatch remain separate integration work.
+version: 1
+runtime: codex-sdk
+execution_scope: operator-self-hosted
+
+accounts:
+  operator-primary:
+    owner: platform-admin
+    auth: chatgpt
+    credential_ref: ssm:/railshot/codex/operator-primary/auth
+    credential_location: control-vm
+    max_concurrent_runs: 1
+
+allocation:
+  # Bind a workspace to one account; changing that binding is an admin action.
+  strategy: explicit-sticky
+  default_account: operator-primary
+  on_busy: queue
+  on_auth_expired: wait-for-admin
+  on_rate_limit: wait-for-reset
+  copy_credentials_to_workspace: false
+
+bindings:
+  operator-default:
+    account: operator-primary
+
+# Hosted end-user service authentication is a separate deployment decision.
+# ChatGPT account rotation is not an automatic fallback for usage limits.

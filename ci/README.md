@@ -1,0 +1,32 @@
+# Trusted CD worker and outbound observation
+
+`railshot-deploy.yml` is a **private administrator PoC workflow template**, not an installed service. It runs user CI on a leased worker, publishes the exact gate-tested bundle on a hosted release worker, and performs GitOps commit + local Argo observation on a dedicated trusted CD worker. As of **2026-10-01 20:54 KST (11:54 UTC)**, live full-gate CI and CLI-composed Codex repair were verified on the dedicated GCP CI worker; see the [CI evidence ledger](../platform/scenarios/ci-validation.md). The local administrator console has authenticated API/SSE, durable jobs and real worker dispatch, but its CI path still uses `--max-attempts 0`: automatic source repair is not connected there. CodeBuild execution, this GitHub workflow's live dispatch, the product Allow-to-release dispatcher and app-scoped automatic LKG remain unimplemented or unverified. The [release adapter](../platform/control/release.py) and live release integration are being implemented; this is not evidence of a completed public deployment.
+
+## Registration and trust boundary
+
+- Configure `RAILSHOT_CD_RUNNER_GROUP` to a protected group usable only by the administrator's private release repository and approved workflow refs. Select label `railshot-cd`. A label alone is not authorization. If the GitHub plan cannot enforce the required isolation, use a dedicated private repository and do not grant an unrestricted shared runner access.
+- Register a non-root worker that initiates outbound HTTPS to GitHub. It must have internal access to its own Kubernetes API, not public ingress. Keep it separate from uploaded source execution, the CI Docker daemon/socket, SDK authentication and host root access.
+- Provision `RAILSHOT_OBSERVER_CLUSTER` and `KUBECONFIG` on the worker, bound to the registered cluster; the workflow compares the alias to trusted `GITOPS_CLUSTER`. Use a CA-verified local API and short-lived credentials. Do not use `/etc/rancher/k3s/k3s.yaml`, an administrator context or an insecure TLS setting.
+- `observer-rbac.yaml` supplies only `get` on Applications in `argocd`. It creates no token Secret. Projected tokens or the trusted host credential renewal path must be supplied by the operator. No Secret reads, Pod exec, Application mutation or cluster-wide wildcard roles are required.
+- Set trusted `GITOPS_REPO` (`owner/repo`) and `GITOPS_REPO_URL` (exact HTTPS source URL in the ApplicationSet), `PLATFORM_REF` (40-character reviewed commit), `GITOPS_CLUSTER`, `STORAGE_CLASS`, and domain. The GitOps token is scoped to the GitOps repository. Configure required reviewers on `railshot-release`; declaring the environment in YAML alone does not install an approval rule.
+- For CI checkpoints, `RAILSHOT_RUN_ROOT` is an administrator-owned persistent directory outside the checkout. Each GitHub run uses its own numeric run ID. Re-running the same run uses `--resume`; uncertain in-flight actions block. GitHub's checkout cleanup must never delete this root. Release/CD side effects do not yet share that SQLite transaction and are not automatically resumable.
+
+These template files do not register a GitHub CD runner or install its cluster credentials. Local adapter work and separately observed GCP bootstrap do not satisfy that workflow registration. The template fails or stays queued until these prerequisites exist; do not fall back to a public Argo endpoint or the user CI runner.
+
+## Evidence and hooks
+
+1. Keep the GitOps repository concurrency lock through **commit → observe**. Splitting these across uncoordinated jobs can let a later commit supersede the exact revision before Argo observes it.
+2. Argo executes resource waves, Sync grants/migration and PostSync internal Service health. A migration failure blocks rollout. Failed migration jobs are retained; archive their outcome before an operator deletes/retries one. No automatic destructive migration retry or database rollback is claimed.
+3. `verify_deployment.py` uses fixed `kubectl get applications.argoproj.io NAME -n argocd -o json` arguments. It compares name/namespace, project, repo/path/branch, destination, exact revision, `Synced`, `Healthy`, successful operation at that same revision and expected image digests in Argo's summary. Pending/failed PostSync is not success.
+4. The JSON receipt uses the [shared observation contract](../platform/contract/observability.md). Its attributes contain external workflow ID/attempt, target, expected/observed revision, UID/resourceVersion and image mapping. Invalid configuration is `BLOCKED`; transport/timeout after GitOps commit is `UNKNOWN`; an observed operation failure is `FAIL`. No raw kubeconfig, token, plugin stderr or entire Application is logged. Workflow IDs are not fabricated product run IDs.
+5. A separate hosted job checks the public URL. It has no cluster credentials. This demonstrates reachability, **not** a revision-bound response or live Pod imageID/observedGeneration. The product's stronger `deployment.verified` event must wait for those checks; current receipt scope is `argocd-application`.
+
+## Acceptance
+
+Offline: `python3 -m unittest discover -s ci -p 'test_*.py'` (workflow policy checks also require PyYAML).
+
+Live acceptance for **this GitHub CD workflow**, still **NOT_RUN**: register the protected worker; verify Application get succeeds and Secret/get, Pod/exec, Application/patch are denied; deploy a new immutable image; inject PostSync failure, stale revision and wrong target; retain the failed receipt; verify GitHub artifacts arrive while SSH/6443/Argo public ingress remain closed. Validate the whole current network baseline with KEDA, not a separate fixture without the baseline.
+
+Self-hosted CD downloads and receipts use a fresh run/attempt directory. Upload names include the producer attempt and downstream jobs consume the actual artifact ID; a failed-job-only retry can reuse the earlier producer's artifact without guessing its name. The CI persistent root is rejected before checkout if it overlaps checkout or runner temp. Do not replace these checks with cleanup of an owner-uncertain persistent directory.
+
+Native references: [GitHub runner access](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/manage-access), [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/), [Argo sync phases and hook lifecycle](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-waves/).

@@ -1,11 +1,11 @@
 # RAILSHOT 제로 트러스트 기준
 
-기준 문서는 [NIST SP 800-207](https://csrc.nist.gov/pubs/sp/800/207/final)이다. 일곱 원칙을 RAILSHOT에 맞게 여섯 줄로 줄였다. 이 문서의 규칙은 모두 아래 "설정 위치"의 파일 하나씩으로 구현된다.
+기준 문서는 [NIST SP 800-207](https://csrc.nist.gov/pubs/sp/800/207/final)이다. 일곱 원칙을 RAILSHOT에 맞게 여섯 줄로 줄였다. 설정 위치와 미구현 경계를 함께 기록한다. 로컬 정책 검사와 실제 클러스터 통신 검증은 별개다.
 
 ## 원칙
 
 1. **위치를 믿지 않는다.** 클러스터 안도 기본 거부다. 허용은 IP가 아니라 신원(네임스페이스·파드 라벨, IAM 역할) 기준이다.
-2. **들어오는 문은 하나다.** 인바운드는 인터넷 → Traefik → 선언된 라우트뿐이다. 배포·설정·관리 접속은 모두 안에서 밖으로 당긴다(pull).
+2. **들어오는 문은 하나다.** 외부 관리 포트(SSH·Kubernetes API·Argo UI)를 열지 않는다. 공개 앱의 Traefik 80/443과 제품 API의 HTTPS는 별도 서비스 진입이다. Git polling과 SSM/runner의 outbound 인증 채널을 구분한다.
 3. **나가는 길도 선언한 것만.** 테넌트 이그레스는 DNS와 `jasmin.yaml`에 적은 호스트의 443뿐이다. IMDS·API 서버·SMTP는 명시 거부라서 어떤 허용보다 우선한다.
 4. **자격은 최소로, 키는 없다.** 클라우드는 OIDC·인스턴스 역할, 파드는 SA 토큰 미마운트, DB는 역할 셋(소유자·런타임·읽기).
 5. **침해를 가정한다.** 앱 하나 = 네임스페이스 하나 = 격리 단위. 뚫린 앱이 닿을 수 있는 범위를 정책으로 먼저 자른다.
@@ -17,11 +17,13 @@
 |---|---|---|
 | 사용자 코드·spec | 없음 | 없음. 게이트·렌더러를 통과한 결과만 GitOps로 간다 |
 | LLM 에이전트 | 없음 (비신뢰 입력을 읽음) | 읽기뿐. 파일은 JSON으로 내고 실행기가 경로 검사 후 쓴다 |
-| CI | 제한 | GitOps 레포 쓰기, GHCR 푸시. 클러스터 자격 없음, AWS는 읽기 전용 plan 역할 |
+| 사용자 검증 CI | 비신뢰 코드를 실행 | 격리 빌드·테스트, 클라우드/registry/GitOps/cluster 자격 없음 |
+| 신뢰된 release | 검증 artifact만 소비 | 동일 이미지 GHCR push; 사용자 코드를 실행하지 않음 |
+| 전용 CD worker | 보호된 private workflow만 실행 | GitOps 쓰기 + 자기 클러스터의 Argo Application `get`; Secret·Pod exec·클러스터 변경 권한 없음 |
 | GitOps 레포 | 입력의 정본 | 클러스터가 당겨 가는 유일한 원천 |
-| 노드 | 플랫폼 경계 | `/railshot/*` SSM 읽기. 단일 노드라 노드가 곧 신뢰 경계다(아래 한계) |
+| 노드 | 플랫폼 경계 | 자기 노드의 GitOps/GHCR read-token 두 SSM ARN만 읽기. 단일 노드라 노드가 곧 신뢰 경계다(아래 한계) |
 
-## 인바운드 (허용 목록 전부)
+## 외부 공개 진입과 클러스터 내부 허용
 
 | 출발 → 도착 | 포트 | 비고 |
 |---|---|---|
@@ -29,25 +31,26 @@
 | Traefik → 테넌트 파드 | 라우트된 서비스 포트 | 라벨 `railshot.dev/tenant`가 있는 네임스페이스의 HTTPRoute만 붙는다 |
 | 같은 앱 네임스페이스 안 | 전부 | 앱 서비스끼리, 앱 → DB |
 | CNPG 오퍼레이터 → DB 파드 | 8000 | 인스턴스 관리 |
-| 노드(kubelet) → 파드 | 프로브 | |
+| 노드(host identity) → 파드 | 포트 제한 없음 | 현재 baseline 범위다. kubelet probe만 허용한다고 보장하지 않는다 |
 
 없는 것: SSH(22), 쿠버네티스 API(6443) 공개, Argo CD·Grafana UI 공개, Argo CD webhook, Ingress·IngressRoute(Traefik 공급자를 끔), 테넌트 LoadBalancer·NodePort(쿼터 0).
 
 ## 아웃바운드 중심 제어면
 
-인바운드를 열지 않으려고 제어 흐름을 모두 pull로 뒤집었다.
+관리 포트를 공개하지 않는다. 전용 CD worker는 GitHub에 outbound로 연결하고, 등록된 로컬 클러스터만 조회한다. 내부 Kubernetes API 통신은 필요하지만 외부 방화벽을 여는 이유가 아니다.
 
 | 흐름 | 방식 | 없앤 인바운드 |
 |---|---|---|
-| 노드 구성 | `ansible-pull`이 Git에서 당김 | SSH, Ansible push |
+| 노드 구성 | 최초 bootstrap 또는 명시 재구성 때 Git/bundle 적용 | SSH, Ansible push |
 | 배포 | Argo CD가 Git을 폴링 | CI → 클러스터 자격, webhook |
 | 관리 접속 | SSM Session Manager(에이전트가 밖으로 연결), 포트 포워딩으로 UI | SSH, 배스천, 공개 UI |
 | 비밀 | 노드가 SSM에서 당김, DB 비밀번호는 클러스터 안 생성 | 비밀 주입 API |
 | 이미지 | containerd가 GHCR에서 당김 | 레지스트리 푸시 수신 |
-| 배포 확인 | CI가 공개 URL을 밖에서 확인 | 상태 보고 엔드포인트 |
+| Argo 관측 | 내부 CD worker가 Application을 읽고 GitHub artifact로 결과 전송 | 공개 Argo API·6443 |
+| 외부 도달성 | 별도 hosted runner의 공개 URL probe | 관리 포트 불필요. HTTP 성공만으로 새 revision 성공을 단정하지 않음 |
 | 온프렘 | 같은 pull 모델 | 제어용 인바운드 0 |
 
-노드 보안 그룹의 이그레스도 80·443만 연다. AWS DNS·IMDS·시간 동기화는 보안 그룹 대상이 아니다.
+AWS 앱 SG는 outbound TCP80/443만 명시한다. AWS DNS·IMDS·시간 동기화는 SG 대상이 아니다. GCP·Azure는 현재 provider 기본 egress 허용이 남아 있어 같은 보안 수준으로 표시하지 않는다. GCP `allow_iap_ssh=true`는 제한된 출처라도 TCP22 관리 인바운드이므로, 엄격한 0 profile에서는 false다.
 
 ## 테넌트 이그레스
 
@@ -55,7 +58,7 @@
 |---|---|
 | kube-dns 53 | 허용 (Cilium DNS 프록시 경유, 조회가 모두 기록된다) |
 | 같은 앱 네임스페이스 | 허용 |
-| `egress:`에 적은 호스트의 443 | 허용 (`api.example.com`, `*.example.com`) |
+| `egress:`에 적은 호스트의 443 | DNS에서 학습한 IP로 허용. TLS hostname/HTTP 목적지 검증 프록시는 아님 |
 | 169.254.169.254 (IMDS) | 명시 거부 |
 | kube-apiserver | 명시 거부 (CNPG 파드만 예외) |
 | 인터넷 SMTP 25·465·587 | 명시 거부 |
@@ -97,8 +100,8 @@ aws ssm start-session --target <instance-id>
 
 ## 알려진 한계와 다음 단계
 
-- 단일 노드에서는 노드가 신뢰 경계다. 노드 역할이 `/railshot/*`를 읽으므로 파드가 노드 자격에 닿지 않게 IMDS 홉 제한 1과 명시 거부를 둘 다 둔다.
-- 플랫폼 네임스페이스(`argocd`, `cnpg-system`, `external-secrets`, `monitoring`, `kube-system`)는 아직 기본 허용이다. P1: Hubble로 흐름을 본 뒤 허용 목록으로 바꾼다.
+- 단일 노드에서는 노드가 신뢰 경계다. 노드 역할이 자기 read-token 두 개를 읽으므로 파드가 노드 자격에 닿지 않게 IMDS 홉 제한 1과 명시 거부를 둘 다 둔다.
+- 플랫폼 네임스페이스(`argocd`, `cnpg-system`, `external-secrets`, `monitoring`, `kube-system`)의 outbound는 아직 기본 허용이다. KEDA는 tenant API deny에서 제외하고 별도 DNS/API/metrics 통신으로 제한한다. 전체 baseline + KEDA 동작은 새 live 재검증이 필요하다. Argo/GHCR host pull까지 FQDN 제한 완료로 표시하지 않는다.
 - ESO가 AWS 비밀을 읽게 되는 변경(P1)에는 테넌트 경로 접두어로 제한한 스토어와 ExternalSecret 출처를 막는 VAP를 함께 넣는다.
 - HTTPS·HSTS는 도메인 구매 뒤(cert-manager). 그때 SG 443을 연다(`https_enabled`).
 - 파드 간 암호화는 단일 노드라 두지 않는다. 멀티 노드에서 Cilium WireGuard.

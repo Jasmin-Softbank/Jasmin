@@ -8,18 +8,12 @@ resources:
   postgres:
     sizes: [small]
     injects_secret: DATABASE_URL
-    guards: {deletion_requires_confirmation: true, backups_days: 7}
+    guards: {deletion_requires_confirmation: true, backups_days: null, backup_status: not_implemented}
     providers:            # same contract, provider-specific implementation
-      aws: cnpg-small     # in-cluster CloudNativePG, EBS gp3 volume, backups to S3
-      onprem: cnpg-small  # same manifests, local-path volume, backups to MinIO (later)
+      aws: cnpg-small     # in-cluster CNPG; object-store backup requires a separately verified profile
+      onprem: cnpg-small  # same manifests; backup/restore is not implemented
     roles: [owner (migrations only), "<app>_rw (runtime, DATABASE_URL)", "<app>_ro (diagnostics)"]
     migration_secret: MIGRATION_DATABASE_URL
-  bucket:
-    public_read: false
-    injects_secret: BUCKET_URL
-    providers:
-      aws: s3-private
-      onprem: minio       # later
 
 env:
   max_keys: 50
@@ -28,15 +22,18 @@ secrets:
   max_keys: 20            # values arrive through the secure channel, never through chat or files
 
 removal:                  # a resource dropped from jasmin.yaml
-  default: detach_and_retain
-  retain_days: 7
-  delete: destructive_change_only   # server-side confirmation + snapshot first
+  status: not_implemented
+  default: manual_retention_required
+  retain_days: null
+  delete: unsupported   # server-side confirmation + snapshot first
 
 domain:
   host: "<app>-<random6>.<platform-domain>"   # stable across changes
   custom_domain: unsupported                   # MVP
 
 unsupported_mvp:
+  - bucket
+  - automatic_backup_restore
   - custom_domain
   - gpu
   - region_change
@@ -56,3 +53,8 @@ base_images:
   - gcr.io/distroless/base-debian12
   - nginxinc/nginx-unprivileged:stable-alpine
   - eclipse-temurin:21-jre
+  - maven:3.9.9-eclipse-temurin-21
+  - gradle:8.14.3-jdk21
+  - node:22.23.3-bookworm-slim
+  - python:3.12.9-slim-bookworm
+  - python:3.12.14-slim-bookworm

@@ -1,19 +1,23 @@
 #cloud-config
-# Terraform renders only pointers; the node configures itself with ansible-pull (no SSH, no inventory).
+# Public configuration only; this content is visible in Terraform state and VM metadata.
+package_update: true
+packages: [python3-venv, git, e2fsprogs]
 write_files:
   - path: /etc/railshot/node.yml
     permissions: "0600"
     content: |
-      name: ${name}
-      region: ${region}
-      gitops_repo: ${gitops_repo}
-      gitops_token_param: /${name}/gitops-read-token
-      ghcr_token_param: /${name}/ghcr-read-token
-packages: [python3-pip]   # ansible-core via pip (cloud-init ansible module)
-ansible:
-  install_method: pip
-  package_name: ansible-core==2.21.4
-  pull:
-    - url: ${node_repo}
-      checkout: ${node_ref}
-      playbook_names: [infra/ansible/node.yml]
+      ${indent(6, node_config)}
+  - path: /usr/local/sbin/railshot-bootstrap
+    permissions: "0700"
+    content: |
+      ${indent(6, bootstrap_script)}
+  - path: /etc/railshot/bootstrap-manifest.json
+    permissions: "0600"
+    content: ${jsonencode(bootstrap_manifest)}
+  - path: /etc/systemd/system/k3s.service.d/data-disk.conf
+    permissions: "0644"
+    content: |
+      [Unit]
+      RequiresMountsFor=/var/lib/rancher
+runcmd:
+  - [bash, /usr/local/sbin/railshot-bootstrap]

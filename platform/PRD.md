@@ -1,7 +1,8 @@
 # RAILSHOT PRD v0 (초안)
 
 > 가제 RAILSHOT. Team Jasmin, SoftBank Hackathon 2026 예선 1 (테마 "One Action, Infinite Clouds.").
-> 상태: 초안 (2026-09-30). 베스트 프랙티스 문서가 아니다. 결정 대기 항목은 §16에 모았다.
+> 상태: 초안 (2026-09-30), 구현 경계 재확인 2026-10-01 20:54 KST. 베스트 프랙티스 문서가 아니다. 결정 대기 항목은 §16에 모았다.
+> 현재 범위: 지원 fixture의 실제 전체 CI·Codex 수정 후 재검사는 [CI 검증 기록](scenarios/ci-validation.md), AWS/CI 담당의 Terraform·Argo bootstrap·CI/LKG 구현 경계는 [통합 계획 §7.7](CONTROL-PLANE-PLAN.md#77-2026-10-01-구현-증분과-남은-검증)이 정본이다. GCP bootstrap·재시작 후 readiness는 확인했으나 AWS 새 앱 스택 전체 E2E, CodeBuild, 콘솔 자동 수정, 실앱 CD 공개 배포와 자동 LKG는 완료로 표시하지 않는다.
 > 관련 문서: [README.md](README.md)(구성·권한), [TOPOLOGY.md](TOPOLOGY.md)(요청·배포 경로), [mcp/TOOLS.md](mcp/TOOLS.md)(MCP 계약), [scenarios/db-migration.md](scenarios/db-migration.md), [contract/](contract/), [agents/](agents/), [runner/](runner/).
 
 ## 1. 문제
@@ -37,9 +38,9 @@
 | 운영자 | 운영자 MCP(읽기 전용 연합), Grafana | 실패한 배포의 원인 확인 |
 
 대표 시나리오:
-1. **첫 배포**: 업로드 → intake → adapter → 게이트(실패 시 fixer, 최대 3회) → deploy → 링크, 적용된 기본값과 AI가 고친 diff
+1. **첫 배포 목표**: 업로드 → intake → baseline 게이트 → 필요한 SDK 수정(최대 3회) → full gate → 영향·diff·대상이 결합된 Allow → deploy → 검증 결과와 링크. 현재 관리자 콘솔 API·영속 Allow kernel은 구현했으나 승인 소비→release 실행 연결은 진행 중이다. Actions protected environment는 별도 관리자 workflow의 release 경계이며 실제 실행은 미검증이다.
 2. **자연어 변경**: "DB 붙이고 메모리 늘려줘" → 위험 등급 cost → 월 비용 차이 확인 → 적용 → 같은 링크
-3. **실패**: 스모크 실패 → LKG 자동 롤백 → diagnoser 설명 + 그대로 보낼 수 있는 변경 요청문
+3. **실패 목표**: 스모크 실패 → 앱별 LKG 롤백 → diagnoser 설명 + 변경 요청문. 자동 LKG 선택·복원·재검증은 아직 미구현이다.
 4. **DB**: SQLite 앱 → Postgres(M1), 컬럼 추가·삭제, 잘못된 마이그레이션(시나리오 M0–M6)
 
 ## 4. 기능 요구사항
@@ -61,7 +62,7 @@
 | ID | 요구 | P |
 |---|---|---|
 | FR-AD-1 | adapter가 Dockerfile류와 `jasmin.yaml`만 제안한다. 규칙 기반 어댑터(우리 코드)로 되면 LLM 0회 | P0 |
-| FR-AD-2 | 게이트 L0(경로·패치 정책) → L1(정적: 스키마·Dockerfile 규칙·렌더 검사, `gate.py`) → L2(빌드) → L3(기동·플랫폼 프로브·동작) → L4(Trivy·크기·비밀(gitleaks)·비용) | P0 |
+| FR-AD-2 | 현재 필수 게이트 `L0 → L1 → Q → L2 → L4 → L3`; 세부 검사·제한은 [CI 정본](scenarios/ci-pipeline.md). 부분 검사 통과는 release 불가 | P0 |
 | FR-AD-3 | 분류기 F1–F9. F7(앱 결함)·F8(일시 장애)은 LLM을 부르지 않는다 | P0 |
 | FR-AD-4 | fixer 최대 3회, 같은 실패 서명 2회면 중단, `give_up` 채널 | P0 |
 | FR-AD-5 | 에이전트는 읽기만 한다. 파일은 JSON 출력으로 받고 실행기가 경로 검사 후 쓴다 | P0 |
@@ -71,9 +72,9 @@
 
 | ID | 요구 | P |
 |---|---|---|
-| FR-DP-1 | `plan_hash` 재검증 → GHCR digest → Terraform apply(OIDC apply 역할) → GitOps 커밋 → Argo CD 동기화 | P0 |
+| FR-DP-1 | 통과 artifact binding → 동일 검증 이미지 GHCR publish → GitOps 커밋 → Argo sync/operation 관측. Terraform apply는 관리자 기반 자원 작업으로 분리 | P0 |
 | FR-DP-2 | 앱마다 추측 불가 서브도메인, 와일드카드 DNS·인증서 | P0 (PoC는 sslip.io HTTP) |
-| FR-DP-3 | 공개 URL 스모크 통과 시 링크 반환, 실패 시 LKG 롤백 | P0 |
+| FR-DP-3 | Argo target/revision/operation/health/image-summary + 별도 공개 URL probe. live Pod digest·revision-bound HTTP·앱별 자동 LKG는 미구현 | P0 |
 | FR-DP-4 | 배포 전략: 롤링 기본, Canary·Blue-Green은 Argo Rollouts(§8) | P1 |
 | FR-DP-5 | 환경 순서(온프렘 → AWS) | P2 |
 
@@ -99,11 +100,11 @@
 | 영역 | 요구 |
 |---|---|
 | 보안 | LLM 쓰기 0(제안만), Rule of Two(에이전트는 비신뢰 입력만), 클라우드는 OIDC 역할만·키 없음, token passthrough 금지, 테넌트 경계는 레포·네임스페이스·토큰 범위로 이중화, 승인은 서버 서명만 인정. 네트워크·멀티테넌시·인바운드 기준은 [ZERO-TRUST.md](ZERO-TRUST.md) |
-| 신뢰성 | API 서버 메모리 상태 0, 복제 2개 affinity 없이 동작, 모든 부작용 도구 멱등 |
+| 신뢰성 | 관리자 PoC는 단일 API/worker, Alembic으로 관리하는 SQLAlchemy SQLite/PostgreSQL 상태다. local CI checkpoint/resume·제품 job/event·lease/UNKNOWN 차단을 구현했으며 API 복제·원격 변경 재조정은 후속 통합. [지속성 정본](CONTROL-PLANE-PLAN.md#4-지속성-기억-resume) |
 | 성능 | time-to-URL(호출 → 링크 200) 측정값 공개. 수정 루프 전체 30분 이내, 시도당 10분 |
 | 비용 | 실행당 LLM 예산 상한, 계정 예산 알람, 비용 등급 게이트 |
 | 개인정보 | 에이전트 텔레메트리에서 `user.email`·프롬프트 본문 제거, 로그·트레이스 보존 7일, 로그 발췌는 마스킹 |
-| 이식성 | Provider Interface 계약(ensure/get/destroy/plan), Terraform은 AWS 구현 하나, 온프렘은 같은 계약 |
+| 이식성 | 상위 create/read/update/delete 계약과 AWS/GCP/Azure Terraform 모듈·공통 plan/apply 실행기가 있다. GCP bootstrap 실검증, AWS 새 앱 스택·Azure live·온프레 Controller 적합성은 별도 미검증이다. 모듈 존재를 제품 CRUD 지원으로 표시하지 않는다. |
 
 ## 6. 아키텍처 요약
 
@@ -161,13 +162,13 @@
 
 ## 8. CD 구성 (Argo CD 3.5.3)
 
-Argo CD로 고정한다. 3.5.3은 최근 1년 보안 권고 6건이 모두 고쳐진 버전이다. webhook은 열지 않는다(폴링).
+Argo CD를 사용하며 현재 bootstrap은 Helm chart 10.9.4다. 보안 권고 수치는 재확인 없이 최신 안전 보장으로 사용하지 않는다. webhook은 열지 않는다(폴링).
 
 | 층 | 도구 | 판정 |
 |---|---|---|
 | 플랫폼 구성 요소 | **App-of-Apps** 루트 하나, sync wave로 순서 | 채택. 수가 적고 순서가 중요하다 |
 | 테넌트 앱 생성 | **ApplicationSet**(git generator, 앱 디렉터리 단위) | 채택 + 보강: `applicationsSync: create-update`, `preserveResourcesOnDeletion: true`. 기본값이면 앱 디렉터리가 사라질 때 DB까지 연쇄 삭제된다 |
-| 릴리스 전략 | **Argo Rollouts**(Gateway API 플러그인, Prometheus AnalysisTemplate) | 선택 채택. 기본은 RollingUpdate, `jasmin.yaml`에 `strategy: canary | bluegreen`을 적은 앱만 Rollout. 단일 노드에서 Blue-Green은 파드가 두 배라 쿼터 안에서만 |
+| 릴리스 전략 | 현재 **Deployment RollingUpdate** | canary/bluegreen은 admission에서 거부. Rollouts controller·routing·analysis 검증 전 지원으로 표기하지 않음 |
 | 환경 순서(온프렘 → AWS) | ApplicationSet RollingSync | **기각**. Beta이고, 자동 동기화를 강제로 끄며, 한 Argo CD가 모든 클러스터를 볼 때만 동작한다. 파이프라인 승격 커밋으로 둔다 |
 
 앱 디렉터리(렌더러 출력, `jasmin-gitops/apps/<target>/<tenant>/<app>/`):
@@ -175,18 +176,18 @@ Argo CD로 고정한다. 3.5.3은 최근 1년 보안 권고 6건이 모두 고�
 ```
 00-db.yaml        CNPG Cluster·Database·DatabaseRole    wave -1, Prune=confirm, Delete=false
 10-migrate.yaml   마이그레이션 Job                      hook Sync, wave 1, hook-delete-policy HookSucceeded
-20-app.yaml       Deployment (strategy 지정 시 Rollout)  wave 2
-21-services.yaml  Service (+ canary/preview Service)
+20-app.yaml       Deployment                           wave 2
+21-services.yaml  Service
 22-route.yaml     HTTPRoute (정확한 host)
-23-analysis.yaml  AnalysisTemplate (Rollout일 때만)
-90-smoke.yaml     PostSync Job: 공개 URL 200 스모크
+23-autoscaling.yaml  관리자 capability/profile로 허용한 KEDA ScaledObject
+90-smoke.yaml     PostSync Job: 같은 앱 Service health (외부 경로는 별도)
 ```
 
-- 동기화: `automated: {prune: true, selfHeal: true}`, `ServerSideApply`, `PruneLast`, `FailOnSharedResource`. Rollouts가 바꾸는 HTTPRoute 가중치는 `ignoreDifferences`로 둔다.
+- 동기화: `automated: {prune: true, selfHeal: true}`, `ServerSideApply`, `PruneLast`, `FailOnSharedResource`. KEDA가 소유하는 Deployment의 replicas만 label 조건으로 ignore한다.
 - 파괴적 변경 보호: DB·PVC·DB 자격 Secret에 `Prune=confirm`, `Delete=false`. 서버 확인이 끝나면 deployer가 `argocd.argoproj.io/deletion-approved` 주석을 커밋한다.
-- 같은 커밋에서 실패한 동기화는 Argo가 자동으로 다시 시도하지 않는다. deployer가 실패를 감지해 LKG를 커밋한다(`argocd app rollback`은 자동 동기화 앱에서 쓸 수 없다).
-- Notifications로 동기화·헬스 이벤트를 evidence와 관측으로 보낸다.
-- 테넌트 격리: AppProject `t-<tenant>`(sourceRepos·destinations·kind 화이트리스트). Rollouts 컨트롤러가 클러스터 전체 HTTPRoute 수정 권한을 받으므로, 남의 라우트 가중치를 바꾸지 못하게 렌더러 검사와 VAP(k8s 내장) 규칙을 둔다. 트래픽 분할은 Traefik 전용 CRD가 아니라 Gateway API 플러그인으로 한다.
+- 실패 복구 목표는 deployer가 해당 앱의 마지막 검증된 GitOps 선언을 새 커밋으로 복원하고 다시 검증하는 것이다. 이 앱별 LKG 실행기는 아직 미구현이다(`argocd app rollback`은 자동 동기화 앱에서 쓸 수 없다).
+- Notifications는 현재 꺼져 있다. 전용 CD worker가 Application을 읽고 관측 receipt를 GitHub artifact로 전송한다. 제품 collector/API 연결은 후속 단계다.
+- 현재 AppProject는 `railshot-tenants` 하나이며 `t-*` 목적지·허용 kind를 제한한다. 사용자별 project/VAP 및 Rollouts는 구현 완료가 아니다. 서버가 tenant/path를 등록 권한과 대조하는 제품 API 검사가 추가로 필요하다.
 - 성숙 조직(Google SRE 카나리, Netflix Kayenta, Uber, Meta, 토스뱅크 사례)의 방향도 같다: 카나리 판정은 지표와 규칙이 하고, AI는 배포 전 위험 평가와 사후 설명에만 쓴다.
 
 ## 9. 관측성
@@ -256,6 +257,8 @@ A2A 파사드 (P2):
 - 레퍼런스: kagent(CNCF Sandbox)는 클러스터 안 에이전트끼리도 A2A를 쓴다. 우리는 내부 에이전트가 투명하고 서버 상태가 0이라 내부에는 쓰지 않는다.
 
 ## 11. MCP 도구
+
+아래 표는 서버 구현 전 목표 계약이다. 첫 공개 배포도 입력·diff·대상에 결합된 Allow가 필요하다. `idempotent` 힌트는 실제 저장된 operation key와 reconcile 구현을 대신하지 않는다. 현재 CI의 local resume 범위를 MCP/API 전체에 확대하지 않는다.
 
 | 도구 | readOnly | destructive | idempotent | 설명 |
 |---|---|---|---|---|

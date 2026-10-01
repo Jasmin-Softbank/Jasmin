@@ -30,7 +30,7 @@ Make the repository deployable on Jasmin with the fewest new files. You write th
 ## Dockerfile rules
 
 - Multi-stage: build stages for dependencies, data generation and frontend assets; a slim final stage with runtime files only.
-- Base images from the allowlist (contract §5). Use official tags; the platform pins digests.
+- Base images from the allowlist (contract §5). Use an explicit official version. The gate records the built image ID and releases that same image.
 - Cache-friendly order: copy lockfiles and manifests, install, then copy source.
 - Install exactly what the lockfile says (`npm ci`, `uv sync --frozen`, `pip install -r requirements.txt`). Do not upgrade or add dependencies.
 - Final stage: create a numeric user (UID 65532 unless the image provides one), `USER` it. Keep app files owned by root and read-only; if the app writes, point it at `/tmp`.

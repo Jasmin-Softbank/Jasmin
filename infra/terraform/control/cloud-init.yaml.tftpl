@@ -1,0 +1,45 @@
+#cloud-config
+# Local playbook is embedded because it has not been committed/published remotely.
+# Arm the deadline before package downloads: failed installs must not bypass the cost stop.
+# First-run cost cutoff only, not a task drain/checkpoint. After it fires, an administrator
+# must set a new deadline before reusing this VM; persistent timers do not cap all restarts.
+bootcmd:
+  - |
+    /usr/bin/python3 - <<'PY'
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+    import subprocess
+    directory = Path('/var/lib/railshot')
+    directory.mkdir(mode=0o755, parents=True, exist_ok=True)
+    deadline = directory / 'stop-at'
+    if not deadline.exists():
+        deadline.write_text((datetime.now(timezone.utc) + timedelta(hours=72)).strftime('%Y-%m-%d %H:%M:%S UTC'))
+    units = Path('/etc/systemd/system')
+    (units / 'railshot-poc-stop.service').write_text('[Unit]\nDescription=Stop private PoC VM\n[Service]\nType=oneshot\nExecStart=/usr/bin/systemctl poweroff\n')
+    (units / 'railshot-poc-stop.timer').write_text('[Unit]\nDescription=Absolute PoC cost deadline\n[Timer]\nOnCalendar=' + deadline.read_text().strip() + '\nPersistent=true\nAccuracySec=1min\nUnit=railshot-poc-stop.service\n[Install]\nWantedBy=timers.target\n')
+    subprocess.run(['systemctl', 'daemon-reload'], check=True)
+    subprocess.run(['systemctl', 'enable', 'railshot-poc-stop.timer'], check=True)
+    # bootcmd precedes sysinit.target; a synchronous timer start can deadlock boot.
+    subprocess.run(['systemctl', 'start', '--no-block', 'railshot-poc-stop.timer'], check=True)
+    PY
+package_update: true
+packages: [ansible-core, python3-venv, python3-boto3, git, ca-certificates]
+write_files:
+  # References only; allocator behavior is not implemented by this bootstrap.
+  - path: /etc/railshot/accounts.yaml
+    owner: root:root
+    permissions: '0600'
+    encoding: b64
+    content: ${accounts_b64}
+  - path: /etc/railshot/control-bootstrap.yml
+    owner: root:root
+    permissions: '0600'
+    encoding: b64
+    content: ${playbook_b64}
+  - path: /etc/railshot/bootstrap-vars.yml
+    owner: root:root
+    permissions: '0600'
+    content: |
+      railshot_region: ${region}
+runcmd:
+  - [ansible-playbook, -i, 'localhost,', -c, local, /etc/railshot/control-bootstrap.yml, --extra-vars, '@/etc/railshot/bootstrap-vars.yml']

@@ -26,14 +26,71 @@ protected:
   - "**/yarn.lock"
   - "**/uv.lock"
   - "**/poetry.lock"
-  - "**/package.json"        # D1 pending
-  - "**/pyproject.toml"      # D1 pending
-  - "**/requirements*.txt"   # D1 pending
+  - "**/package.json"
+  - "**/pyproject.toml"
+  - "**/requirements*.txt"
   - CLAUDE.md
   - AGENTS.md
   - .claude/**
   - .cursor/**
   - .cursorrules
+
+# Additive only when a trusted operator selects --repair-scope source.
+# Uploaded .jasmin specifications cannot grant this scope.
+source_writable:
+  - "**/*.py"
+  - "**/*.js"
+  - "**/*.mjs"
+  - "**/*.cjs"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "**/*.java"
+
+# Additional denies win over both source_writable and packaging rules.
+source_protected:
+  - "**/migrations/**"
+  - "**/migration/**"
+  - "**/*migration*"
+  - "**/*Migration*"
+  - "**/schema/**"
+  - "**/schemas/**"
+  - "**/models/**"
+  - "**/models.py"
+  - "**/schema.*"
+  - "**/prisma/**"
+  - "**/alembic/**"
+  - "**/generated/**"
+  - "**/*generated*"
+  - "**/vendor/**"
+  - "**/*.config.*"
+  - "**/tsconfig*"
+  - "**/eslint*"
+  - "**/.eslintrc*"
+  - "**/ruff*"
+  - "**/mypy*"
+  - "**/pytest*"
+  - "**/conftest.py"
+  - "**/jest*"
+  - "**/vitest*"
+  - "**/setup.py"
+  - "**/setup.cfg"
+  - "**/tox.ini"
+  - "**/pom.xml"
+  - "**/build.gradle*"
+  - "**/settings.gradle*"
+  - "**/gradle/**"
+  - "**/.mvn/**"
+  - "**/*.lock"
+  - "**/*lockfile*"
+  - "**/policy/**"
+  - "**/policies/**"
+  - "**/contract/**"
+  - "**/test*.*"
+  - "**/*Test.java"
+  - "**/*Tests.java"
+  - "**/Test*.java"
+  - "**/fixtures/**"
 
 limits:
   max_files_changed: 8
@@ -53,3 +110,5 @@ forbidden_patterns:
   - '(curl|wget)[^|\n]*\|\s*(ba)?sh'
   - 'chmod\s+(-R\s+)?777'
   - '^\s*USER\s+(root|0)\s*$'
+  - '(?i:noqa|eslint-disable|@ts-ignore|@ts-nocheck|type\s*:\s*ignore|mypy\s*:\s*ignore|ruff\s*:\s*noqa)'
+  - '(?i:@SuppressWarnings|NOSONAR|noinspection|checkstyle\s*:\s*off|pmd\s*:\s*ignore)'

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvlet Bot · 작업 콘솔</title><link rel="stylesheet" href="/style.css"><script src="/topology.js" defer></script><script src="/app.js" defer></script></head><body>
+<div id="railshot-ui-flow"><div class="nv-shell">
+<header class="nv-header">
+  <div><div class="nv-wordmark">Nuvlet<span class="nv-bot">Bot</span></div><p class="nv-brand-note">by Team Jasmin</p></div>
+  <div class="nv-pet-wrap"><button type="button" class="nv-pet-button" data-action="pet" aria-label="누블렛 메뉴 열기" aria-expanded="false" aria-controls="nv-pet-menu"><span class="nv-pet-art" role="img" aria-label="민트 구름 펫 누블렛"></span><span class="nv-pet-name">누블렛 ⌄</span></button>
+    <div class="nv-popover" id="nv-pet-menu" hidden><button type="button" data-action="open">▣ 컴퓨터 열기</button><p class="nv-caption" data-resource>연결 확인 중</p></div>
+  </div>
+</header>
+<div class="nv-layout">
+<section class="nv-chat" aria-label="작업 대화">
+  <div class="nv-thread-meta"><div class="nv-task-title"><h2 data-workspace>작업 공간</h2><span class="nv-caption" data-upload-count></span></div><span class="nv-ci" data-connection data-status="offline" role="status"><span class="nv-dot"></span><span>서버 연결 확인 중</span></span></div>
+  <div class="nv-chat-scroll" data-chat-scroll tabindex="0" aria-label="대화 기록"><div class="nv-chat-inner">
+    <div class="nv-welcome" data-chat-welcome><span class="nv-pet-art" aria-hidden="true"></span><h2>누블렛과 함께 만들어요.</h2><p>프로젝트를 올리고, 하고 싶은 일을 이야기해 주세요.</p></div>
+    <button type="button" class="nv-history-more" data-action="history" hidden>이전 대화 불러오기</button><div class="nv-messages" data-messages role="log" aria-label="누블렛과의 대화" aria-live="polite"></div>
+    <div class="nv-upload-receipt" hidden data-request></div>
+    <div class="nv-status-card"><p data-summary>서버에서 작업 상태를 가져오고 있어요.</p><ol class="nv-steps" data-jobs aria-label="단계별 마지막 결과"></ol><details class="nv-job-history"><summary data-history-count>실행 이력</summary><ol data-job-history aria-label="실행 이력"></ol></details></div>
+    <div data-approval-list></div><p class="nv-error" data-error role="alert" hidden></p>
+  </div></div>
+  <div class="nv-composer-area"><label class="nv-caption" for="build-root" hidden data-root-label>검사할 프로젝트</label><select class="nv-select" id="build-root" hidden><option value="">자동 선택</option></select>
+    <form id="chat-form" class="nv-chat-composer"><label class="nv-sr-only" for="chat-message">누블렛에게 메시지</label><textarea id="chat-message" rows="2" maxlength="8000" placeholder="누블렛에게 부탁하기…" disabled></textarea><button type="submit" class="nv-send" aria-label="메시지 보내기" disabled>↑</button></form>
+    <div class="nv-actions"><button type="button" data-action="upload">＋ 폴더 올리기</button><button type="button" data-action="prepare" disabled>빌드 구성 확인</button><button type="button" class="nv-primary" data-action="ci" disabled>CI 실행</button></div>
+    <input type="file" id="upload" class="nv-hidden-input" webkitdirectory multiple aria-label="프로젝트 폴더 선택">
+    <p class="nv-caption" data-chat-status role="status">에이전트 연결 확인 중</p>
+    <p class="nv-caption" data-action-note>코드를 올리면 실제 러너에서 빌드 구성과 검사를 확인합니다.</p>
+  </div>
+</section>
+<div class="nv-computer-clip" inert aria-hidden="true"><section class="nv-computer" aria-label="VM 작업 화면">
+  <div class="nv-computer-head"><div><p>누블렛의 컴퓨터</p><span class="nv-caption" data-machine>아직 관측된 VM이 없어요</span></div><button type="button" class="nv-close" data-action="close" aria-label="컴퓨터 닫고 전체 대화로 돌아가기">×</button></div>
+  <div class="nv-window"><div class="nv-address"><span data-address>실행 로그</span><span class="nv-demo-tag" data-live-status>연결 확인 중</span></div>
+    <section class="nv-ci-panel" data-view="ci" hidden aria-label="CI 실행 상세"><div class="nv-ci-run"><label for="ci-run">CI 실행</label><select id="ci-run"></select></div><p data-ci-summary role="status">CI 실행을 기다리고 있어요.</p><progress data-ci-progress max="100" value="0" aria-label="완료된 CI 단계 비율"></progress><ol data-ci-steps class="nv-ci-steps"></ol><p class="nv-caption" data-ci-note></p></section>
+    <pre class="nv-terminal" data-view="terminal" tabindex="0" aria-label="VM 실제 실행 로그">실행 로그를 기다리고 있어요.</pre>
+    <div class="nv-app" data-view="files" hidden><div><h3>프로젝트 파일</h3><p class="nv-caption">서버가 받은 파일과 해시</p></div><ul class="nv-files" data-files></ul></div>
+    <div class="nv-app" data-view="browser" hidden><h3>배포된 서비스</h3><p class="nv-caption">확인된 배포 주소가 아직 없어요.</p><a data-service-link target="_blank" rel="noopener noreferrer" hidden>서비스 열기 ↗</a></div>
+  </div>
+  <form class="nv-compose" id="terminal-form" hidden><label for="terminal-command" class="nv-caption">$</label><input id="terminal-command" autocomplete="off" spellcheck="false" maxlength="4096" placeholder="VM에서 실행할 명령" aria-label="VM 명령"><button type="submit">실행</button></form>
+  <nav class="nv-dock" aria-label="컴퓨터 앱 전환"><button type="button" data-tab="ci" aria-pressed="false">◷ CI</button><button type="button" data-tab="terminal" aria-pressed="true">⌘ 터미널</button><button type="button" data-tab="files" aria-pressed="false">▤ 파일</button><button type="button" data-tab="browser" aria-pressed="false" disabled>◎ 브라우저</button></nav>
+  <div class="nv-control"><span class="nv-control-status" data-control-status aria-live="polite">제어 상태 확인 중</span><button type="button" data-action="control" disabled>제어권 가져오기</button></div>
+  <p class="nv-caption" data-control-note>실행 중인 검사와 수동 제어는 동시에 작업 공간을 변경하지 않아요.</p>
+</section></div>
+</div>
+<footer class="nv-footer"><span class="nv-caption" data-transport>연결 확인 중</span><span class="nv-caption" data-layout-status aria-live="polite">화면을 닫아도 서버의 작업 기록은 보존돼요.</span></footer>
+</div></div></body></html>

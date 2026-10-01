@@ -34,11 +34,14 @@
 ## 2. 배포 경로 (컨트롤 플레인): 호출 → 파드
 
 ```
-MCP deploy/apply ─▶ jasmin-api ─▶ Actions plan: intake → 에이전트 → 게이트 → 커밋
-   ─▶ Actions deploy: plan_hash 재검증 → GHCR digest → terraform apply(OIDC) → gitops 커밋
-   ─▶ Argo CD sync(wave -1 DB ─▶ wave 1 migrate Job ─▶ wave 2 앱) ─▶ kube-apiserver ─▶ scheduler ─▶ kubelet
-   ─▶ containerd pull ─▶ CNI ADD ─▶ probes ─▶ EndpointSlice ─▶ HTTPRoute ─▶ 스모크(칸 8→1)
+업로드 ─▶ intake → baseline gate → 필요한 SDK 수정 → full gate → 검증 이미지 bundle
+   ─▶ protected release: 동일 이미지 publish → 전용 CD worker의 GitOps 커밋
+   ─▶ Argo Git pull: DB/role → grants → migrate → Deployment → 내부 Service PostSync
+   ─▶ CD worker: Application target/revision/operation/health/image-summary → outbound artifact
+   ─▶ 별도 hosted runner: 공개 URL 도달성 (새 revision과 HTTP 응답의 직접 결합은 미구현)
 ```
+
+현재 실행 정의는 GitHub Actions 템플릿이며 CodeBuild driver와 제품 Allow/API 연결은 계획이다. 기반 생성·수정의 Terraform apply는 관리자 별도 작업이고 매 앱 release에 넣지 않는다. 전용 CD runner 등록·최소 RBAC는 운영 전제다([네트워크 계약](ZERO-TRUST.md), [설치 경계](../ci/README.md)).
 
 모든 단계는 **선언 → 컨트롤러 → 실제 상태** 모양이다. Git(선언)을 Argo CD(컨트롤러)가 클러스터에 맞추고, HTTPRoute(선언)를 Traefik이 라우팅 테이블로 바꾼다. 아래 OVN과 같은 구조다.
 

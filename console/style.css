@@ -1,0 +1,139 @@
+body{margin:0;padding:16px;background:#edf4ed;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}button{font:inherit}
+
+    #railshot-ui-flow{--nv-ink:#202a27;--nv-muted:#62716b;--nv-paper:#f9fbf8;--nv-mint:#c0e0d0;--nv-green:#315e4c;--nv-line:#e0e7e1;--nv-pet:url("/assets/nuvlet-pet.png");color:var(--nv-ink);font:400 14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#101612;padding:6px;border-radius:23px;min-width:0;color-scheme:light}
+    #railshot-ui-flow *{box-sizing:border-box}#railshot-ui-flow [hidden]{display:none!important}
+    #railshot-ui-flow button{font:inherit;color:inherit;min-height:38px;border:0;border-radius:10px;padding:8px 12px;background:transparent;display:inline-flex;align-items:center;justify-content:center;gap:7px;max-width:100%;white-space:normal;text-align:left;transition:background 160ms ease,color 160ms ease}
+    #railshot-ui-flow button:hover{background:#e9efea}#railshot-ui-flow button:disabled{color:#7b8880;background:#e8ede8}#railshot-ui-flow button.nv-primary{background:var(--nv-green);color:#fff}#railshot-ui-flow button.nv-primary:disabled{background:#d4ddd5;color:#728077}
+    #railshot-ui-flow p,#railshot-ui-flow h2,#railshot-ui-flow h3{margin:0}#railshot-ui-flow h2{font-size:17px;line-height:1.4;font-weight:600;letter-spacing:-.02em}#railshot-ui-flow h3{font-size:14px;font-weight:600;line-height:1.4}
+    #railshot-ui-flow .nv-shell{background:var(--nv-paper);border-radius:18px;overflow:clip}
+    #railshot-ui-flow .nv-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 25px;border-bottom:1px solid var(--nv-line);position:relative;z-index:5}
+    #railshot-ui-flow .nv-wordmark{font-size:24px;font-weight:650;line-height:1.1;letter-spacing:-.065em;display:flex;align-items:center;gap:7px}#railshot-ui-flow .nv-bot{font-size:11px;letter-spacing:0;font-weight:500;background:#e2eee6;color:#43604f;border-radius:5px;padding:3px 5px}
+    #railshot-ui-flow .nv-caption{font-size:12px;color:var(--nv-muted)}#railshot-ui-flow .nv-brand-note{font-size:11px;color:var(--nv-muted);margin-top:4px}
+    #railshot-ui-flow .nv-pet-art{display:block;flex:none;width:48px;height:48px;background-image:var(--nv-pet);background-size:contain;background-position:center;background-repeat:no-repeat}
+    #railshot-ui-flow .nv-pet-wrap{position:relative;margin-left:auto}#railshot-ui-flow .nv-pet-button{padding:0 5px 0 0;gap:7px;border-radius:14px}#railshot-ui-flow .nv-pet-button .nv-pet-art{width:58px;height:58px}#railshot-ui-flow .nv-pet-name{font-size:12px;color:var(--nv-green)}
+    #railshot-ui-flow .nv-popover{position:absolute;right:0;top:calc(100% + 10px);width:226px;max-width:calc(100vw - 44px);padding:9px;background:#fff;border:1px solid #d9e5dc;border-radius:15px;z-index:10;box-shadow:0 12px 28px #193b2920}
+    #railshot-ui-flow .nv-popover button{width:100%;justify-content:flex-start;background:#edf5ef;padding:12px}#railshot-ui-flow .nv-popover p{padding:8px 7px 2px}
+    #railshot-ui-flow .nv-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,0fr);transition:grid-template-columns 360ms cubic-bezier(.22,.8,.25,1)}
+    #railshot-ui-flow.nv-open .nv-layout{grid-template-columns:minmax(0,.39fr) minmax(0,.61fr)}
+    #railshot-ui-flow .nv-chat{min-width:0;padding:0;display:flex;flex-direction:column;min-height:0}
+    #railshot-ui-flow .nv-chat-inner{width:100%;max-width:550px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+    #railshot-ui-flow .nv-task{display:grid;gap:5px}#railshot-ui-flow .nv-ci{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--nv-green)}#railshot-ui-flow .nv-dot{width:6px;height:6px;background:#58886e;border-radius:50%;flex:none}
+    #railshot-ui-flow .nv-user{background:#ebefea;padding:12px 16px;border-radius:16px 16px 4px 16px;align-self:flex-end;max-width:95%;font-size:14px}
+    #railshot-ui-flow .nv-message{display:grid;grid-template-columns:34px minmax(0,1fr);gap:11px;align-items:start}#railshot-ui-flow .nv-message .nv-pet-art{width:34px;height:34px}#railshot-ui-flow .nv-message-body{display:grid;gap:9px}#railshot-ui-flow .nv-speaker{font-size:12px;font-weight:600;color:#3a5949}
+    #railshot-ui-flow .nv-steps{list-style:none;padding:3px 0 0;margin:0;display:grid;gap:7px;font-size:12px;color:var(--nv-muted)}#railshot-ui-flow .nv-steps li{display:flex;align-items:center;gap:8px}#railshot-ui-flow .nv-steps .nv-current{color:#315e4c;font-weight:500}#railshot-ui-flow .nv-steps svg{width:14px;height:14px;flex:none}#railshot-ui-flow .nv-step-state{margin-left:auto;font-size:11px;font-weight:400}
+    #railshot-ui-flow .nv-approval{border:1px solid #dce5dc;border-radius:13px;padding:15px;display:grid;gap:10px;background:#f2f6f0}#railshot-ui-flow .nv-approval-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}#railshot-ui-flow .nv-next{margin-left:auto;font-size:11px;color:#6b7a6f;font-weight:400}
+    #railshot-ui-flow .nv-actions{display:flex;gap:7px;align-items:center}#railshot-ui-flow .nv-actions button{min-height:32px;font-size:12px;padding:5px 15px}
+    #railshot-ui-flow .nv-compose{display:flex;align-items:center;gap:12px;border:1px solid #dbe2da;border-radius:14px;background:#fff;padding:11px 13px;color:#7b857d;margin-top:1px;font-size:13px}#railshot-ui-flow .nv-compose p{flex:1}#railshot-ui-flow .nv-compose svg{width:17px;height:17px;flex:none}#railshot-ui-flow .nv-send{display:grid;place-items:center;background:#e9efea;border-radius:7px;padding:5px;color:#637366}
+    #railshot-ui-flow .nv-computer-clip{min-width:0;overflow:hidden;visibility:hidden;transition:visibility 0s 360ms}#railshot-ui-flow.nv-open .nv-computer-clip{visibility:visible;transition-delay:0s}
+    #railshot-ui-flow .nv-computer{width:var(--nv-vm-width,600px);min-width:0;background:var(--nv-mint);padding:18px;display:flex;flex-direction:column;gap:14px;height:100%;min-height:0;opacity:0;transform:translateX(22px);clip-path:inset(0 0 0 100%);transition:clip-path 330ms cubic-bezier(.22,.8,.25,1),transform 330ms cubic-bezier(.22,.8,.25,1),opacity 180ms ease}
+    #railshot-ui-flow.nv-open .nv-computer{opacity:1;transform:translateX(0);clip-path:inset(0);transition-delay:45ms}
+    #railshot-ui-flow .nv-computer-head{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#244b3b}#railshot-ui-flow .nv-computer-head p{font-size:13px;font-weight:500}#railshot-ui-flow .nv-computer-head .nv-caption{color:#4a6b59;font-size:11px}#railshot-ui-flow .nv-close{padding:6px;min-height:32px;width:32px}#railshot-ui-flow .nv-close:hover{background:#acd2bd}
+    #railshot-ui-flow .nv-window{background:#fff;color:#293a30;border-radius:12px;box-shadow:0 8px 26px #20473224;flex:1;overflow:hidden;overflow-wrap:anywhere;min-height:0;display:flex;flex-direction:column}
+    #railshot-ui-flow .nv-address{background:#eff3ee;color:#667269;padding:11px 14px;display:flex;align-items:center;gap:8px;font-size:11px}#railshot-ui-flow .nv-address svg{width:14px;height:14px;flex:none}#railshot-ui-flow .nv-demo-tag{margin-left:auto;font-size:11px;white-space:nowrap;color:#7c877e}
+    #railshot-ui-flow .nv-terminal{background:#202924;color:#d9e4dc;padding:21px 20px;flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;font:400 12px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}#railshot-ui-flow .nv-terminal .nv-term-muted{color:#91a397}#railshot-ui-flow .nv-terminal .nv-term-good{color:#b1ddc0}#railshot-ui-flow .nv-terminal .nv-term-current{color:#eef3d9}
+    #railshot-ui-flow .nv-app{padding:25px;display:grid;gap:19px;flex:1;align-content:start}#railshot-ui-flow .nv-browser-title{font-size:25px;letter-spacing:-.04em;font-weight:500}#railshot-ui-flow .nv-memo{padding:16px 0;border-top:1px solid var(--nv-line);display:grid;gap:7px}#railshot-ui-flow .nv-memo p{font-size:13px;color:#566b5e}
+    #railshot-ui-flow .nv-files{list-style:none;padding:0;margin:0;display:grid}#railshot-ui-flow .nv-files li{display:flex;gap:9px;align-items:center;padding:12px 0;border-bottom:1px solid var(--nv-line);font-size:13px}#railshot-ui-flow .nv-files small{margin-left:auto;font-size:11px;color:#819084}
+    #railshot-ui-flow .nv-dock{display:flex;align-self:center;justify-content:center;gap:4px;padding:4px;background:#a9cfb9;border-radius:12px;max-width:100%}#railshot-ui-flow .nv-dock button{color:#305a44;font-size:11px;padding:8px 11px;gap:6px;min-height:35px}#railshot-ui-flow .nv-dock svg{width:16px;height:16px}#railshot-ui-flow .nv-dock button[aria-pressed=true]{background:#f5faf4;color:#244d37}#railshot-ui-flow .nv-dock button:hover{background:#deeee2}
+    #railshot-ui-flow .nv-control{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px;padding-top:1px}#railshot-ui-flow .nv-control-status{display:flex;align-items:center;gap:7px;font-size:12px;color:#30553f}#railshot-ui-flow .nv-control button{background:#eff7ee;color:#315640;font-size:12px;min-height:34px;padding:6px 11px}#railshot-ui-flow .nv-control button:disabled{background:#b8d7c4;color:#466d53}
+    #railshot-ui-flow .nv-footer{padding:10px 23px;border-top:1px solid var(--nv-line);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}#railshot-ui-flow .nv-footer .nv-caption{font-size:11px}
+    @media(max-width:480px){#railshot-ui-flow{padding:4px;border-radius:18px}#railshot-ui-flow .nv-shell{border-radius:14px}#railshot-ui-flow .nv-header{padding:12px 15px}#railshot-ui-flow .nv-wordmark{font-size:22px}#railshot-ui-flow .nv-pet-name{display:none}#railshot-ui-flow .nv-chat{padding:23px 18px;min-height:0}#railshot-ui-flow .nv-chat-inner{gap:21px}#railshot-ui-flow .nv-pet-button .nv-pet-art{width:52px;height:52px}#railshot-ui-flow .nv-message{grid-template-columns:28px minmax(0,1fr);gap:8px}#railshot-ui-flow .nv-message .nv-pet-art{width:28px;height:28px}#railshot-ui-flow .nv-computer,#railshot-ui-flow.nv-open .nv-computer{padding-left:12px;padding-right:12px}#railshot-ui-flow .nv-terminal{font-size:11px;padding:17px 13px}#railshot-ui-flow .nv-address{padding:10px;font-size:11px}#railshot-ui-flow .nv-demo-tag{display:none}#railshot-ui-flow .nv-dock button{padding:8px;font-size:11px}#railshot-ui-flow .nv-app{padding:19px}#railshot-ui-flow .nv-footer{padding:10px 16px}}
+    @media(pointer:coarse){#railshot-ui-flow button,#railshot-ui-flow .nv-actions button,#railshot-ui-flow .nv-dock button,#railshot-ui-flow .nv-control button,#railshot-ui-flow .nv-close{min-height:44px}#railshot-ui-flow .nv-close{width:44px}}
+    @media(prefers-reduced-motion:reduce){#railshot-ui-flow *{animation:none!important;transition:none!important}}
+  
+#railshot-ui-flow .nv-error{color:#923826;background:#faebe5;border:1px solid #e9c1b1;padding:12px;border-radius:10px;font-size:12px;overflow-wrap:anywhere}
+#railshot-ui-flow .nv-compose input{font:inherit;min-width:0;flex:1;border:0;outline-offset:5px;background:transparent;color:var(--nv-ink)}
+#railshot-ui-flow .nv-compose button{background:var(--nv-green);color:white;padding:5px 12px;min-height:32px}
+#railshot-ui-flow .nv-actions{flex-wrap:wrap}
+#railshot-ui-flow .nv-task-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#railshot-ui-flow .nv-ci[data-status=offline]{color:#946644}
+#railshot-ui-flow .nv-ci[data-status=offline] .nv-dot{background:#a77544}
+#railshot-ui-flow .nv-step-state[data-status=FAIL],#railshot-ui-flow .nv-step-state[data-status=UNKNOWN]{color:#a33d24}
+#railshot-ui-flow .nv-step-state[data-status=PASS]{color:#315e4c}
+#railshot-ui-flow .nv-files li{display:block;padding:9px 0;overflow-wrap:anywhere}
+#railshot-ui-flow .nv-files small{display:block;float:none}
+#railshot-ui-flow .nv-select{font:inherit;width:100%;padding:8px;border:1px solid #dbe2da;border-radius:8px;background:white}
+#railshot-ui-flow button:focus-visible,#railshot-ui-flow input:focus-visible{outline:2px solid #315e4c;outline-offset:3px}
+#railshot-ui-flow .nv-app{overflow:auto}
+#railshot-ui-flow .nv-hidden-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+
+
+/* The viewport owns height; growing messages and logs scroll within their panes. */
+html,body{height:100%;overflow:hidden}
+#railshot-ui-flow{height:100%}
+#railshot-ui-flow .nv-shell{height:100%;display:flex;flex-direction:column}
+#railshot-ui-flow .nv-header,#railshot-ui-flow .nv-footer{flex:none}
+#railshot-ui-flow .nv-layout{flex:1;min-height:0;overflow:hidden}
+#railshot-ui-flow .nv-thread-meta{flex:none;padding:16px 24px 10px}
+#railshot-ui-flow .nv-chat-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;overflow-anchor:none;padding:8px 24px 24px}
+#railshot-ui-flow .nv-chat-inner{max-width:700px}
+#railshot-ui-flow .nv-computer-clip{min-height:0}
+#railshot-ui-flow .nv-terminal{tab-size:2}
+#railshot-ui-flow .nv-composer-area{flex:none;width:100%;max-width:748px;margin:0 auto;padding:10px 24px 14px;display:grid;gap:6px}
+#railshot-ui-flow .nv-chat-composer{display:flex;align-items:flex-end;gap:8px;border:1px solid #d9e4d8;border-radius:18px;padding:11px;background:white}
+#railshot-ui-flow .nv-chat-composer textarea{resize:none;min-width:0;flex:1;border:0;background:transparent;font:inherit;line-height:1.6;color:var(--nv-ink);padding:2px 5px;max-height:110px}
+#railshot-ui-flow button.nv-send{width:34px;min-height:34px;padding:0;flex:none;border-radius:50%;background:var(--nv-green);color:white;font-size:21px}
+#railshot-ui-flow button.nv-send:disabled{background:#e4ece3;color:#869986}
+#railshot-ui-flow .nv-welcome{padding:24px 0;display:grid;justify-items:center;gap:10px;text-align:center}
+#railshot-ui-flow .nv-welcome .nv-pet-art{width:78px;height:78px}
+#railshot-ui-flow .nv-welcome p{max-width:310px;font-size:13px;color:var(--nv-muted)}
+#railshot-ui-flow .nv-messages{display:grid;gap:20px}
+#railshot-ui-flow .nv-chat-message{min-width:0;max-width:92%;display:grid;gap:6px;justify-self:start}
+#railshot-ui-flow .nv-chat-message[data-role=user]{justify-self:end}
+#railshot-ui-flow .nv-message-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
+#railshot-ui-flow .nv-chat-message[data-role=user] .nv-message-text{background:#e5eee4;border-radius:17px 17px 4px 17px;padding:10px 15px}
+#railshot-ui-flow .nv-message-meta{font-size:10px;color:var(--nv-muted)}
+#railshot-ui-flow .nv-upload-receipt{align-self:flex-end;padding:9px 13px;border:1px solid var(--nv-line);border-radius:12px;font-size:12px;color:#506957}
+#railshot-ui-flow .nv-status-card{display:grid;gap:8px;border-left:2px solid #c7d6c7;padding:3px 0 3px 12px;font-size:12px;color:#66756a}
+#railshot-ui-flow .nv-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+#railshot-ui-flow textarea:focus-visible{outline:2px solid #315e4c;outline-offset:3px}
+@media(max-width:850px){
+ body{padding:8px}
+ #railshot-ui-flow.nv-open .nv-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(160px,1fr) minmax(220px,1fr)}
+ #railshot-ui-flow:not(.nv-open) .nv-computer-clip{display:none}
+ #railshot-ui-flow .nv-computer{width:100%;padding:10px 14px;gap:6px}
+ #railshot-ui-flow .nv-thread-meta{padding:10px 16px 6px}
+ #railshot-ui-flow .nv-chat-scroll{padding:6px 16px 12px}
+ #railshot-ui-flow .nv-composer-area{padding:8px 16px 10px}
+ #railshot-ui-flow .nv-footer span:last-child,#railshot-ui-flow.nv-open [data-action-note],#railshot-ui-flow.nv-open [data-control-note]{display:none}
+ #railshot-ui-flow.nv-open .nv-chat-composer textarea{height:32px}
+}
+
+#railshot-ui-flow .nv-history-more{align-self:center;color:var(--nv-muted);font-size:12px;min-height:32px}
+#railshot-ui-flow .nv-chat-message{content-visibility:auto;contain-intrinsic-size:auto 100px}
+#railshot-ui-flow .nv-job-history summary{cursor:pointer;padding:7px 0;color:var(--nv-muted);font-size:11px}
+#railshot-ui-flow .nv-job-history ol{list-style:none;padding:0;margin:0;display:grid;gap:7px;max-height:180px;overflow:auto}
+#railshot-ui-flow .nv-job-history li{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px}
+#railshot-ui-flow .nv-job-history small{font-family:ui-monospace,monospace;color:var(--nv-muted)}
+
+#railshot-ui-flow .nv-ci-panel{overflow:auto;padding:16px;display:grid;align-content:start;gap:12px;font-size:12px}
+#railshot-ui-flow .nv-ci-run{display:flex;gap:10px;align-items:center}
+#railshot-ui-flow .nv-ci-run select{min-width:0;flex:1;border:1px solid var(--nv-line);border-radius:7px;background:white;padding:7px;font:inherit}
+#railshot-ui-flow progress{width:100%;height:7px;accent-color:var(--nv-green)}
+#railshot-ui-flow .nv-ci-steps{list-style:none;padding:0;margin:0;border:1px solid var(--nv-line);border-radius:10px;overflow:hidden}
+#railshot-ui-flow .nv-ci-steps li+li{border-top:1px solid var(--nv-line)}
+#railshot-ui-flow .nv-ci-steps summary{display:flex;align-items:center;gap:8px;padding:12px;cursor:pointer;list-style:none}
+#railshot-ui-flow .nv-ci-steps summary>span:nth-child(2){flex:1}
+#railshot-ui-flow .nv-ci-steps small,#railshot-ui-flow .nv-ci-steps time{font-size:10px;color:var(--nv-muted)}
+#railshot-ui-flow .nv-ci-marker{display:grid;place-items:center;min-width:18px;border-radius:50%;font-weight:600;color:#718174}
+#railshot-ui-flow [data-status=PASS].nv-ci-marker{color:#287344}
+#railshot-ui-flow [data-status=RUNNING].nv-ci-marker{color:#98621b}
+#railshot-ui-flow [data-status=FAIL].nv-ci-marker,#railshot-ui-flow [data-status=UNKNOWN].nv-ci-marker{color:#a83a28}
+#railshot-ui-flow .nv-step-log{margin:0;padding:12px;max-height:240px;overflow:auto;background:#202924;color:#d9e4dc;font:11px/1.7 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Review-only topology, isolated from chat/CI state and existing layout selectors. */
+#railshot-ui-flow .nv-topology{min-width:0;width:100%;margin-top:9px;padding:14px 0 0;border-top:1px solid var(--nv-line);display:grid;gap:10px}
+#railshot-ui-flow .nv-topology-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#railshot-ui-flow .nv-topology-status{font-size:11px;color:var(--nv-muted);white-space:nowrap}
+#railshot-ui-flow .nv-topology-note{font-size:12px;line-height:1.6;color:var(--nv-muted);overflow-wrap:anywhere}
+#railshot-ui-flow .nv-topology-viewport{max-width:100%;overflow:auto;max-height:440px;border-radius:10px;background:#eff5ef;overscroll-behavior:contain}
+#railshot-ui-flow .nv-topology-viewport svg{display:block;max-width:none}
+#railshot-ui-flow .nv-topology-node{fill:#fbfdf9;stroke:#d0dfd3;stroke-width:1.2}
+#railshot-ui-flow .nv-topology-edge{fill:none;stroke:#829b8a;stroke-width:1.3}
+#railshot-ui-flow .nv-topology-kind{fill:#62716b;font:11px -apple-system,BlinkMacSystemFont,sans-serif}
+#railshot-ui-flow .nv-topology-label{fill:#202a27;font:13px -apple-system,BlinkMacSystemFont,sans-serif;font-weight:550}
+#railshot-ui-flow .nv-topology-owner{fill:#315e4c;font:11px -apple-system,BlinkMacSystemFont,sans-serif}
+#railshot-ui-flow .nv-topology-details{font-size:12px;color:var(--nv-muted)}
+#railshot-ui-flow .nv-topology-details summary{cursor:pointer;min-height:32px;display:list-item}
+#railshot-ui-flow .nv-topology-details ul{margin:8px 0;padding-left:18px;display:grid;gap:8px;overflow-wrap:anywhere}
+#railshot-ui-flow button.nv-topology-edit{justify-self:start;border:1px solid #c8d9cc;font-size:12px;color:var(--nv-green);background:#f1f6f0}
+#railshot-ui-flow .nv-topology-viewport:focus-visible,#railshot-ui-flow .nv-topology-details summary:focus-visible{outline:2px solid var(--nv-green);outline-offset:3px}

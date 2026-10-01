@@ -4,6 +4,10 @@
   connection: local
   become: true
   vars:
+    cloud_provider: aws
+    gitops_path: clusters/aws/platform
+    gitops_revision: main
+    adopt_existing_node_name: false  # Explicit maintenance only; never infer from transient hostname.
     k3s_version: v1.36.4+k3s1
     k3s_sha256: 835873f37245fc615f547a2fe2af9402a347875f13fa64a1f136de644955ea3f          # release asset `k3s` (amd64)
     k3s_install_sha256: 46177d4c99440b4c0311b67233823a8e8a2fc09693f6c89af1a7161e152fbfad  # install.sh at the same tag
@@ -12,15 +16,105 @@
   vars_files:
     - /etc/railshot/node.yml
   tasks:
+    - name: Validate administrator-selected target bindings
+      ansible.builtin.assert:
+        that:
+          - cloud_provider in ['aws', 'gcp', 'azure', 'openstack']
+          - node_name is defined
+          - node_name | length <= 253
+          - node_name is match('^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$')
+          - gitops_repo is match('^https://[A-Za-z0-9.-]+/[A-Za-z0-9_./-]+$')
+          - gitops_path is match('^clusters/[a-z0-9_-]+/platform$')
+          - gitops_revision is match('^[A-Za-z0-9_./-]+$')
+          - "'..' not in gitops_path and '..' not in gitops_revision"
+        quiet: true
+
+    - name: Inspect existing k3s installation before changing the binary
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: installed_k3s
+
+    - name: Read existing k3s version
+      ansible.builtin.command: /usr/local/bin/k3s --version
+      register: installed_k3s_version
+      changed_when: false
+      check_mode: false
+      when: installed_k3s.stat.exists
+
+    - name: Require a separate maintenance operation for k3s upgrades
+      ansible.builtin.assert:
+        that: k3s_version in installed_k3s_version.stdout
+        fail_msg: 'Installed k3s differs from this bootstrap. Use a reviewed backup/drain/upgrade operation.'
+        quiet: true
+      when: installed_k3s.stat.exists
+
+    - name: Inspect stable node identity configuration
+      ansible.builtin.stat:
+        path: /etc/rancher/k3s/config.yaml.d/20-railshot-node-name.yaml
+      register: node_identity_file
+
+    - name: Inspect existing k3s service
+      ansible.builtin.stat:
+        path: /etc/systemd/system/k3s.service
+      register: installed_k3s_service
+
+    - name: Read recorded stable node identity
+      ansible.builtin.slurp:
+        src: /etc/rancher/k3s/config.yaml.d/20-railshot-node-name.yaml
+      register: recorded_node_identity
+      when: node_identity_file.stat.exists
+
+    - name: Reject implicit node renaming or unreviewed identity adoption
+      ansible.builtin.assert:
+        that:
+          - not node_identity_file.stat.exists or ((recorded_node_identity.content | b64decode | from_yaml)['node-name'] == node_name)
+          - not installed_k3s_service.stat.exists or node_identity_file.stat.exists or (adopt_existing_node_name | bool)
+        fail_msg: 'Preserve the registered node name. Existing unpinned nodes require explicit maintenance adoption after workload/PV review.'
+        quiet: true
+
+    - name: Verify an explicitly adopted name belongs to this existing machine
+      ansible.builtin.command:
+        argv: [/usr/local/bin/k3s, kubectl, get, node, '{{ node_name }}', -o, json]
+      register: adopted_node
+      changed_when: false
+      when: installed_k3s_service.stat.exists and not node_identity_file.stat.exists
+
+    - name: Reject adoption of another machine's node
+      ansible.builtin.assert:
+        that:
+          - ((adopted_node.stdout | from_json).status.nodeInfo.systemUUID | lower) == (ansible_facts.product_uuid | lower)
+        quiet: true
+      when: installed_k3s_service.stat.exists and not node_identity_file.stat.exists
+
+    - name: Stable k3s configuration directory
+      ansible.builtin.file:
+        path: /etc/rancher/k3s/config.yaml.d
+        state: directory
+        mode: '0700'
+
+    - name: Pin node identity independently of cloud hostname changes
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/config.yaml.d/20-railshot-node-name.yaml
+        content: '{{ {"node-name": node_name} | to_nice_yaml }}'
+        mode: '0600'
+      # Existing service is deliberately not restarted by bootstrap. Maintenance
+      # must review Pods/PV affinity and perform the single explicit restart.
+
     - name: Base packages
       ansible.builtin.apt:
         name: [curl, jq, unattended-upgrades]
         update_cache: true
 
+    - name: Require the independently retained data mount before k3s writes data
+      ansible.builtin.command: mountpoint --quiet /var/lib/rancher
+      changed_when: false
+      when: cloud_provider in ['aws', 'gcp', 'azure']
+
     - name: AWS CLI (for SSM parameters; ansible-core only, so no snap module)
       ansible.builtin.command: snap install aws-cli --classic
       args:
         creates: /snap/bin/aws
+      when: cloud_provider == 'aws'
 
     - name: Manifests directory
       ansible.builtin.file:
@@ -37,14 +131,16 @@
 
     - name: GHCR pull credentials from SSM (optional)
       ansible.builtin.shell: |
-        set -o pipefail
-        tok=$(/snap/bin/aws ssm get-parameter --region {{ region }} --name {{ ghcr_token_param }} --with-decryption --query Parameter.Value --output text 2>/dev/null) || exit 0
+        set -euo pipefail
+        tok=$(/snap/bin/aws ssm get-parameter --region {{ region | quote }} --name {{ ghcr_token_param | quote }} --with-decryption --query Parameter.Value --output text)
+        test -n "$tok" && test "$tok" != None
         umask 077; mkdir -p /etc/rancher/k3s
         printf 'configs:\n  ghcr.io:\n    auth:\n      username: railshot\n      password: %s\n' "$tok" > /etc/rancher/k3s/registries.yaml
       args:
         executable: /bin/bash
         creates: /etc/rancher/k3s/registries.yaml
       no_log: true
+      when: cloud_provider == 'aws' and ghcr_token_param is defined
 
     - name: k3s binary (pinned by sha256)
       ansible.builtin.get_url:
@@ -63,6 +159,7 @@
     - name: Install the k3s service with the verified binary
       ansible.builtin.command: >-
         /usr/local/lib/k3s-install.sh server
+        --node-name {{ node_name | quote }}
         --flannel-backend=none --disable-network-policy --disable-kube-proxy
         --secrets-encryption --write-kubeconfig-mode=0600
       environment:
@@ -81,19 +178,38 @@
 
     - name: GitOps read token from SSM (optional, private repos over HTTPS; the node has no SSH egress)
       ansible.builtin.shell: |
-        set -o pipefail
-        tok=$(/snap/bin/aws ssm get-parameter --region {{ region }} --name {{ gitops_token_param }} --with-decryption --query Parameter.Value --output text 2>/dev/null) || exit 0
+        set -euo pipefail
+        tok=$(/snap/bin/aws ssm get-parameter --region {{ region | quote }} --name {{ gitops_token_param | quote }} --with-decryption --query Parameter.Value --output text)
+        test -n "$tok" && test "$tok" != None
         {{ kubectl }} -n argocd create secret generic railshot-gitops --from-literal=type=git \
-          --from-literal=url={{ gitops_repo }} --from-literal=username=x-access-token --from-literal=password="$tok" --dry-run=client -o yaml \
+          --from-literal=url={{ gitops_repo | quote }} --from-literal=username=x-access-token --from-literal=password="$tok" --dry-run=client -o yaml \
           | {{ kubectl }} label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
           | {{ kubectl }} apply -f -
       args:
         executable: /bin/bash
       no_log: true
       changed_when: false
+      when: cloud_provider == 'aws' and gitops_token_param is defined
 
     - name: Root application (App of Apps)
       ansible.builtin.template:
         src: files/root-app.yaml.j2
         dest: "{{ manifests }}/root-app.yaml"
         mode: "0600"
+
+    - name: Wait for a Ready Kubernetes node
+      ansible.builtin.command: '{{ kubectl }} wait --for=condition=Ready node/{{ node_name }} --timeout=300s'
+      changed_when: false
+
+    - name: Read actual kubelet version and node readiness
+      ansible.builtin.command: '{{ kubectl }} get node {{ node_name }} -o json'
+      register: node_observation
+      changed_when: false
+
+    - name: Verify the running node matches the pinned bootstrap
+      ansible.builtin.assert:
+        that:
+          - (node_observation.stdout | from_json).metadata.name == node_name
+          - (node_observation.stdout | from_json).status.nodeInfo.kubeletVersion == k3s_version
+        quiet: true
+      when: not ansible_check_mode

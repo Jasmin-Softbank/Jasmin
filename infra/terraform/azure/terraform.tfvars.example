@@ -1,0 +1,20 @@
+# Administrator input template. Replace every REPLACE value before plan/apply.
+# This is not a claim that any image, subscription, or published revision was verified.
+subscription_id      = "00000000-0000-0000-0000-000000000000"
+resource_group_mode  = "existing" # create is an explicit dedicated-RG policy, not auto-discovery
+resource_group_name  = "railshot-poc"
+location             = "koreacentral"
+target_id            = "azure-korea-poc"
+name                 = "railshot-azure"
+vm_size              = "Standard_D4s_v5"
+image_version        = "REPLACE_WITH_VERIFIED_IMAGE_VERSION"
+admin_ssh_public_key = "REPLACE_WITH_ADMIN_PUBLIC_KEY"
+node_ref             = "REPLACE_WITH_PUBLISHED_40_CHARACTER_COMMIT_SHA"
+gitops_repo          = "https://github.com/REPLACE_OWNER/REPLACE_PUBLIC_GITOPS.git"
+gitops_path          = "clusters/azure/platform"
+gitops_revision      = "main"
+data_disk_gib        = 100
+web_ports            = [] # only [80] or [80, 443] after route/TLS setup and explicit exposure approval
+compute_enabled      = true
+
+owner_ref = "terraform:registered-state:REPLACE_WITH_OWNER"

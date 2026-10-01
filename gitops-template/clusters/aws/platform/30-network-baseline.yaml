@@ -8,7 +8,7 @@ metadata:
 spec:
   endpointSelector:
     matchExpressions:
-      - {key: io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system, argocd, cnpg-system, external-secrets, monitoring]}
+      - {key: io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system, argocd, cnpg-system, external-secrets, monitoring, keda]}
   ingress:
     - fromEntities: [host]          # kubelet probes only; everything else is per-app
   egress:
@@ -27,9 +27,10 @@ metadata:
 spec:
   endpointSelector:
     matchExpressions:
-      - {key: io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system, argocd, cnpg-system, external-secrets, monitoring]}
+      - {key: io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system, argocd, cnpg-system, external-secrets, monitoring, keda]}
   egressDeny:
     - toCIDR: [169.254.169.254/32]  # IMDS: node credentials
+    - toCIDR: [168.63.129.16/32]   # Azure WireServer: host agent/DNS, never tenant traffic
     - toEntities: [world]
       toPorts:
         - ports: [{port: "25", protocol: TCP}, {port: "465", protocol: TCP}, {port: "587", protocol: TCP}]
@@ -42,7 +43,7 @@ metadata:
 spec:
   endpointSelector:
     matchExpressions:
-      - {key: io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system, argocd, cnpg-system, external-secrets, monitoring]}
+      - {key: io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system, argocd, cnpg-system, external-secrets, monitoring, keda]}
       - {key: cnpg.io/cluster, operator: DoesNotExist}
   egressDeny:
     - toEntities: [kube-apiserver]
@@ -55,7 +56,7 @@ metadata:
 spec:
   endpointSelector:
     matchExpressions:
-      - {key: io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system, argocd, cnpg-system, external-secrets, monitoring]}
+      - {key: io.kubernetes.pod.namespace, operator: NotIn, values: [kube-system, argocd, cnpg-system, external-secrets, monitoring, keda]}
       - {key: cnpg.io/cluster, operator: Exists}
   ingress:
     - fromEndpoints:
@@ -64,6 +65,47 @@ spec:
         - ports: [{port: "8000", protocol: TCP}]   # operator → instance manager
   egress:
     - toEntities: [kube-apiserver]                  # the instance manager reconciles through the API
+---
+# CPU/memory-only KEDA profile: no external scaler destinations. Egress-only policies
+# preserve API -> metrics/webhook and kubelet probe ingress; they open no host port.
+# Labels/9666 verified against the rendered keda 2.21.0 chart (SHA256 in 15-keda.yaml).
+# Revalidate these selectors and internal paths before changing that chart/profile.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: railshot-keda-egress
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+spec:
+  endpointSelector:
+    matchLabels: {io.kubernetes.pod.namespace: keda}
+  egress:
+    - toEndpoints:
+        - matchLabels: {io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns}
+      toPorts:
+        - ports: [{port: "53", protocol: ANY}]
+          rules:
+            dns: [{matchPattern: "*"}]
+    - toEntities: [kube-apiserver]
+      toPorts:
+        - ports: [{port: "443", protocol: TCP}, {port: "6443", protocol: TCP}]
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: railshot-keda-metrics-egress
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+spec:
+  endpointSelector:
+    matchLabels:
+      io.kubernetes.pod.namespace: keda
+      app.kubernetes.io/name: keda-operator-metrics-apiserver
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: keda
+            app.kubernetes.io/name: keda-operator
+      toPorts:
+        - ports: [{port: "9666", protocol: TCP}]
 ---
 # Kill switch: kubectl label ns <ns> railshot.dev/suspended=true
 apiVersion: cilium.io/v2

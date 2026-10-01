@@ -12,15 +12,18 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from infra.database import scan_workspace
+
 MAX_BYTES = 100 * 1024 * 1024
 MAX_FILES = 20_000
 # Instructions for other agents are an injection surface; hooks in .claude/settings.json run commands.
 AGENT_FILES = ["CLAUDE.md", "AGENTS.md", "GEMINI.md", ".cursorrules", ".windsurfrules",
-               ".claude", ".cursor", ".github/copilot-instructions.md"]
-SECRET_NAME = re.compile(r"(^|/)(\.env(\..*)?|.*\.pem|.*\.key|id_(rsa|ed25519|ecdsa))$")
+               ".claude", ".cursor", ".codex", ".github/copilot-instructions.md"]
+SECRET_NAME = re.compile(r"(^|/)(\.env[^/]*|.*\.pem|.*\.key|id_(rsa|ed25519|ecdsa)[^/]*)$")
 SECRET_TEXT = re.compile(rb"AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|sk-ant-[A-Za-z0-9_-]{20,}"
                          rb"|xox[bpas]-[0-9A-Za-z-]{10,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----")
-MANIFESTS = ["package.json", "requirements.txt", "pyproject.toml", "go.mod", "Cargo.toml", "pom.xml", "Gemfile"]
+MANIFESTS = ["package.json", "requirements.txt", "pyproject.toml", "go.mod", "Cargo.toml", "pom.xml", "Gemfile", "build.gradle", "build.gradle.kts"]
 LOCKS = ["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "uv.lock", "poetry.lock", "go.sum", "Cargo.lock"]
 FRAMEWORKS = {"fastapi": "fastapi", "flask": "flask", "django": "django", "express": "express",
               "vite": "vite", "next": "next", "react": "react", "uvicorn": "uvicorn"}
@@ -36,6 +39,8 @@ def check_upload(root):
     files, total = [], 0
     for p in root.rglob("*"):
         rel = p.relative_to(root).as_posix()
+        if ".git" in p.relative_to(root).parts:
+            continue
         if p.is_symlink():
             target = (p.parent / os.readlink(p)).resolve()
             if root.resolve() not in target.parents:
@@ -88,11 +93,19 @@ def inventory(root, files, total):
 
 
 def main():
+    source = Path(sys.argv[1])
+    if source.is_symlink():
+        fail('upload root must not be a symlink')
     upload, work, run = (Path(a).resolve() for a in sys.argv[1:4])
+    if (upload == work or upload in work.parents or work in upload.parents
+            or upload == run or upload in run.parents or run in upload.parents
+            or work == run or work in run.parents):
+        fail('upload, workspace and run paths overlap unsafely')
     files, total = check_upload(upload)
     if work.exists():
         shutil.rmtree(work)
-    shutil.copytree(upload, work, symlinks=True)
+    # Never execute uploaded git hooks, filters, config, or credentials during git add.
+    shutil.copytree(upload, work, symlinks=True, ignore=shutil.ignore_patterns(".git"))
     removed = []
     names = {n for n in AGENT_FILES if "/" not in n}
     for p in sorted(work.rglob("*")):
@@ -101,11 +114,14 @@ def main():
             shutil.rmtree(p) if p.is_dir() and not p.is_symlink() else p.unlink()
             removed.append(rel)
     subprocess.run(["git", "init", "-q"], cwd=work, check=True)
-    subprocess.run(["git", "add", "-A"], cwd=work, check=True)
+    # The imported baseline is every sanitized file, including user-ignored source.
+    subprocess.run(["git", "add", "-f", "-A"], cwd=work, check=True)
     subprocess.run(["git", "-c", "user.name=jasmin", "-c", "user.email=jasmin@localhost",
                     "commit", "-qm", "import"], cwd=work, check=True)
     ir = inventory(work, [f for f in files if (work / f).is_file()], total)
     ir["removed_agent_files"] = sorted(set(removed))
+    # Static source evidence only; the scanner never approves or provisions a DB.
+    ir["database"] = scan_workspace(work)
     run.mkdir(parents=True, exist_ok=True)
     (run / "ir.json").write_text(json.dumps(ir, indent=2, ensure_ascii=False))
     print(json.dumps({"ok": True, "ir": str(run / "ir.json"), "removed": ir["removed_agent_files"]}))

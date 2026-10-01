@@ -1,10 +1,20 @@
 # Template for the private apps monorepo (.github/workflows/railshot-deploy.yml there).
-# One run: fix loop → build + push → render + GitOps commit → verify the public URL (revert on failure).
-# Needs: secrets ANTHROPIC_API_KEY or CODEX_API_KEY (CI API keys, not subscription tokens), GITOPS_TOKEN (contents:write on the GitOps repo);
+# Private administrator PoC: baseline → SDK repair → full gates → exact tested image bundle → publish → GitOps.
+# User-VM allocation, control-VM RPC and signed approvals are not implemented by this template.
+# Authentication is explicit: AGENT_AUTH_MODE=subscription (Codex, dedicated admin home only) or api-key.
+# API mode needs ANTHROPIC_API_KEY/CODEX_API_KEY. Both modes need GITOPS_TOKEN for the GitOps job.
 #        vars RAILSHOT_DOMAIN (e.g. 1-2-3-4.sslip.io), GITOPS_REPO (owner/name), PLATFORM_REF (commit of Jasmin),
-#        AGENT_PROVIDER (claude | codex, default claude).
+#        AGENT_PROVIDER (codex | claude), REPAIR_SCOPE (packaging | source), QUALITY_NETWORK,
+#        GITOPS_CLUSTER (registered cluster alias), STORAGE_CLASS (installed class on that cluster).
+#        RAILSHOT_CD_RUNNER_GROUP (protected private-workflow-only group), GITOPS_REPO_URL (exact Argo source URL).
+# The dedicated CD worker has kubectl/get-only credentials for its registered local cluster.
+# It polls GitHub outbound; it is NOT the user CI VM, has no Docker socket/root kubeconfig, and runs no uploaded code.
+# Registration/group protection and credential rotation are operator prerequisites, not implemented by this template.
+# RAILSHOT_RUN_ROOT is an administrator-owned persistent directory outside the checkout, on the leased CI worker.
+# Retrying the SAME workflow run resumes that run ID; uncertain calls block instead of replaying.
 # Only first-party actions (actions/*), pinned by SHA. Build, login and digests use the runner's own docker CLI.
-# ponytail: agent and gate share one job for the MVP; P1 splits them (agent job without Docker, gate job without the model key).
+# Runner labels must select the leased private CI VM; do not register an unrestricted public-repo runner.
+# Admin-only PoC still co-locates coordinator/SDK and Docker. Multi-user rollout requires control-VM RPC separation.
 name: railshot-deploy
 on:
   workflow_dispatch:
@@ -19,15 +29,42 @@ concurrency:
 env:
   TENANT: ${{ inputs.tenant }}
   APP: ${{ inputs.app }}
+  GITOPS_CLUSTER: ${{ vars.GITOPS_CLUSTER }}
+  STORAGE_CLASS: ${{ vars.STORAGE_CLASS }}
+  RUN_DIR: ${{ vars.RAILSHOT_RUN_ROOT }}/${{ github.run_id }}
+  KEDA_ENABLED: ${{ vars.KEDA_ENABLED }}
+  AUTOSCALING_PROFILE: ${{ vars.AUTOSCALING_PROFILE }}
 
 jobs:
   loop:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(vars.RAILSHOT_CI_RUNNER_LABELS) }}
     timeout-minutes: 40
     permissions: {contents: read}
     outputs:
       passed: ${{ steps.loop.outputs.passed }}
+      bundle_id: ${{ steps.bundle.outputs.artifact-id }}
     steps:
+      - name: Validate trusted platform bindings
+        env:
+          PLATFORM_REF: ${{ vars.PLATFORM_REF }}
+          GITOPS_REPO: ${{ vars.GITOPS_REPO }}
+          DOMAIN: ${{ vars.RAILSHOT_DOMAIN }}
+          RUN_ROOT: ${{ vars.RAILSHOT_RUN_ROOT }}
+        run: |
+          [[ "$PLATFORM_REF" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          [[ "$GITOPS_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 1
+          [[ "$DOMAIN" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || exit 1
+          [[ "$GITOPS_CLUSTER" =~ ^[a-z][a-z0-9-]{1,39}$ ]] || exit 1
+          [[ "$STORAGE_CLASS" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || exit 1
+          [[ "$RUN_ROOT" = /* && "$RUN_ROOT" != / ]] || exit 1
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUN_ROOT']).resolve()
+          for key in ('GITHUB_WORKSPACE', 'RUNNER_TEMP'):
+              temporary = Path(os.environ[key]).resolve()
+              assert root != temporary and temporary not in root.parents and root not in temporary.parents, 'run root must be outside checkout/temp and their parents'
+          PY
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,110 +73,221 @@ jobs:
         run: '[[ "$TENANT" =~ ^[a-z0-9]{1,20}$ && "$APP" =~ ^[a-z][a-z0-9-]{1,28}[a-z0-9]$ ]] || { echo "invalid tenant/app"; exit 1; }'
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with: {python-version: "3.13"}
-      - name: Fix loop (intake → agent → gate, at most 3 attempts)
+      - name: Baseline gates, then SDK repair only when eligible
         id: loop
         env:
-          PROVIDER: ${{ vars.AGENT_PROVIDER || 'claude' }}
+          PROVIDER: ${{ vars.AGENT_PROVIDER || 'codex' }}
+          QUALITY_NETWORK: ${{ vars.QUALITY_NETWORK }}
+          REPAIR_SCOPE: ${{ vars.REPAIR_SCOPE || 'packaging' }}
+          RAILSHOT_AUTH_MODE: ${{ vars.AGENT_AUTH_MODE }}
+          RAILSHOT_CODEX_HOME: ${{ vars.RAILSHOT_CODEX_HOME }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
         run: |
           set -euo pipefail
-          test -d "apps/$TENANT/$APP"
+          python -c 'import os; from pathlib import Path; p=Path.cwd().resolve()/"apps"/os.environ["TENANT"]/os.environ["APP"]; assert p.is_dir() and p.resolve()==p, "app directory must stay within checkout; symlinks forbidden"'
+          case "$RAILSHOT_AUTH_MODE:$PROVIDER" in
+            subscription:codex)
+              test -n "$RAILSHOT_CODEX_HOME" && test -f "$RAILSHOT_CODEX_HOME/auth.json"
+              unset CODEX_API_KEY OPENAI_API_KEY ANTHROPIC_API_KEY ;;
+            api-key:codex) test -n "$CODEX_API_KEY" ;;
+            api-key:claude) test -n "$ANTHROPIC_API_KEY" ;;
+            *) echo "Set explicit supported AGENT_AUTH_MODE/AGENT_PROVIDER"; exit 1 ;;
+          esac
           case "$PROVIDER" in
             claude) pip install -q pyyaml jsonschema "claude-agent-sdk==0.2.158"; unset CODEX_API_KEY ;;
-            codex)  pip install -q pyyaml jsonschema; npm install -g -s @openai/codex@0.159.1; unset ANTHROPIC_API_KEY ;;
+            codex)  pip install -q pyyaml jsonschema "openai-codex==0.159.3"; unset ANTHROPIC_API_KEY ;;
             *) echo "AGENT_PROVIDER must be claude or codex"; exit 1 ;;
           esac
-          python .railshot/platform/loop/loop.py "apps/$TENANT/$APP" run --provider "$PROVIDER" \
-            && echo "passed=true" >> "$GITHUB_OUTPUT" || echo "passed=false" >> "$GITHUB_OUTPUT"
-          git -C run/work diff > run/agent.patch || true
-          git -C run/work ls-files --others --exclude-standard -z | xargs -0 -r tar -C run/work -cf run/new-files.tar
+          [[ "$REPAIR_SCOPE" = packaging || "$REPAIR_SCOPE" = source ]] || exit 1
+          args=(--repair-scope "$REPAIR_SCOPE")
+          if [ -f "$RUN_DIR/state.sqlite3" ]; then args+=(--resume); fi
+          if [ -n "$QUALITY_NETWORK" ]; then args+=(--quality-network "$QUALITY_NETWORK"); fi
+          case "$KEDA_ENABLED" in
+            true) test "$AUTOSCALING_PROFILE" = bounded-v1; args+=(--enable-keda --autoscaling-profile "$AUTOSCALING_PROFILE") ;;
+            false|'') test -z "$AUTOSCALING_PROFILE" ;;
+            *) exit 1 ;;
+          esac
+          if python .railshot/platform/loop/loop.py "apps/$TENANT/$APP" "$RUN_DIR" --provider "$PROVIDER" "${args[@]}"; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+      - name: Export the exact gate-tested images
+        if: steps.loop.outputs.passed == 'true'
+        run: |
+          set -euo pipefail
+          verdict=$(python -c 'import json,os; from pathlib import Path; r=Path(os.environ["RUN_DIR"]); e=json.loads((r/"evidence.json").read_text()); assert e["passed"]; print(r/("gate-"+str(e["attempts"][-1]["attempt"])+"/verdict.json"))')
+          python .railshot/platform/gate/bundle.py export "$RUN_DIR/work" "$verdict" release-bundle
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: bundle
+        if: steps.loop.outputs.passed == 'true'
+        with: {name: "release-bundle-${{ github.run_attempt }}", path: release-bundle, if-no-files-found: error, retention-days: 1}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: loop
+          name: loop-${{ github.run_attempt }}
           path: |
-            run/evidence.json
-            run/agent.patch
-            run/new-files.tar
-            run/gate-*/verdict.json
-            run/*.json
+            ${{ env.RUN_DIR }}/evidence.json
+            ${{ env.RUN_DIR }}/gate-*/verdict.json
+            ${{ env.RUN_DIR }}/gate-*/quality.json
           if-no-files-found: warn
 
   release:
+    environment: railshot-release
     needs: loop
     if: needs.loop.outputs.passed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions: {contents: read, packages: write}
+    outputs:
+      rendered_id: ${{ steps.rendered.outputs.artifact-id }}
     steps:
+      - name: Validate trusted platform bindings
+        env:
+          PLATFORM_REF: ${{ vars.PLATFORM_REF }}
+          GITOPS_REPO: ${{ vars.GITOPS_REPO }}
+          DOMAIN: ${{ vars.RAILSHOT_DOMAIN }}
+        run: |
+          [[ "$PLATFORM_REF" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          [[ "$GITOPS_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 1
+          [[ "$DOMAIN" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || exit 1
+          [[ "$GITOPS_CLUSTER" =~ ^[a-z][a-z0-9-]{1,39}$ ]] || exit 1
+          [[ "$STORAGE_CLASS" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {repository: Jasmin-Softbank/Jasmin, ref: "${{ vars.PLATFORM_REF }}", path: .railshot, persist-credentials: false}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with: {name: loop, path: run}
+        with: {artifact-ids: "${{ needs.loop.outputs.bundle_id }}", path: release-bundle, merge-multiple: true}
       - name: Validate inputs
         run: '[[ "$TENANT" =~ ^[a-z0-9]{1,20}$ && "$APP" =~ ^[a-z][a-z0-9-]{1,28}[a-z0-9]$ ]] || { echo "invalid tenant/app"; exit 1; }'
-      - name: Apply the gate-approved patch
-        run: |
-          set -euo pipefail
-          if [ -s run/agent.patch ]; then git apply --directory="apps/$TENANT/$APP" run/agent.patch; fi
-          if [ -f run/new-files.tar ]; then tar -C "apps/$TENANT/$APP" -xf run/new-files.tar; fi
       - name: Log in to GHCR
         env: {TOKEN: "${{ secrets.GITHUB_TOKEN }}"}
         run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with: {python-version: "3.13"}
-      - name: Build, push by digest, render
+      - name: Verify bundle, publish tested images, render
         env:
           OWNER: ${{ github.repository_owner }}
           DOMAIN: ${{ vars.RAILSHOT_DOMAIN }}
         run: |
           set -euo pipefail
           pip install -q pyyaml jsonschema
-          dir="apps/$TENANT/$APP"
+          python -c 'import os,yaml; s=yaml.safe_load(open("release-bundle/jasmin.yaml")); assert s["app"]==os.environ["APP"], "APP/spec.app mismatch"'
+          python .railshot/platform/gate/bundle.py publish release-bundle \
+            "ghcr.io/${OWNER,,}/${TENANT}-${APP}" "${GITHUB_SHA::12}" --output images.json
           images=()
-          while read -r svc ctx df; do
-            tag="ghcr.io/${OWNER,,}/${TENANT}-${APP}-${svc}:${GITHUB_SHA::12}"
-            docker build --platform linux/amd64 -t "$tag" -f "$dir/$df" "$dir/$ctx"
-            docker push -q "$tag"
-            images+=(--image "$svc=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")")   # repo@sha256, as pushed
-          done < <(python -c 'import sys,yaml
-          for s in yaml.safe_load(open(sys.argv[1]))["services"]: print(s["name"], s["build"].get("context", "."), s["build"]["dockerfile"])' "$dir/.jasmin/jasmin.yaml")
+          while IFS=$'\t' read -r svc digest; do images+=(--image "$svc=$digest"); done < <(jq -r 'to_entries[] | [.key,.value] | @tsv' images.json)
+          scaling=()
+          if [ "$KEDA_ENABLED" = true ]; then scaling+=(--enable-keda --autoscaling-profile "$AUTOSCALING_PROFILE"); fi
           python .railshot/platform/render/render.py \
-            "$dir/.jasmin/jasmin.yaml" rendered --tenant "$TENANT" --domain "$DOMAIN" "${images[@]}" > render.json
+            release-bundle/jasmin.yaml rendered --tenant "$TENANT" --domain "$DOMAIN" --storage-class "$STORAGE_CLASS" "${images[@]}" "${scaling[@]}" > render.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with: {name: rendered, path: "rendered\nrender.json"}
+        id: rendered
+        with:
+          name: rendered-${{ github.run_attempt }}
+          path: |
+            rendered
+            render.json
+            images.json
 
   gitops:
     needs: release
-    runs-on: ubuntu-24.04
+    environment: railshot-release
+    concurrency: {group: railshot-gitops-repository, cancel-in-progress: false}
+    runs-on:
+      group: ${{ vars.RAILSHOT_CD_RUNNER_GROUP }}
+      labels: railshot-cd
     timeout-minutes: 20
+    permissions: {contents: read}
+    env:
+      CD_DIR: ${{ runner.temp }}/railshot-cd-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Create an empty job evidence directory
+        id: cd_workspace
+        run: 'mkdir -m 700 "$CD_DIR"'
+      - name: Validate trusted platform bindings
+        env:
+          PLATFORM_REF: ${{ vars.PLATFORM_REF }}
+          GITOPS_REPO: ${{ vars.GITOPS_REPO }}
+          DOMAIN: ${{ vars.RAILSHOT_DOMAIN }}
+        run: |
+          [[ "$PLATFORM_REF" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          [[ "$GITOPS_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 1
+          [[ "$DOMAIN" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || exit 1
+          [[ "$GITOPS_CLUSTER" =~ ^[a-z][a-z0-9-]{1,39}$ ]] || exit 1
+          [[ "$STORAGE_CLASS" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {repository: Jasmin-Softbank/Jasmin, ref: "${{ vars.PLATFORM_REF }}", path: .railshot, persist-credentials: false}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with: {artifact-ids: "${{ needs.release.outputs.rendered_id }}", path: "${{ env.CD_DIR }}/out", merge-multiple: true}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {repository: "${{ vars.GITOPS_REPO }}", token: "${{ secrets.GITOPS_TOKEN }}", path: gitops}
+      - name: Validate local observation binding before changing GitOps
+        env:
+          GITOPS_REPO: ${{ vars.GITOPS_REPO }}
+          GITOPS_REPO_URL: ${{ vars.GITOPS_REPO_URL }}
+          REGISTERED_CLUSTER: ${{ vars.GITOPS_CLUSTER }}
+        run: |
+          set -euo pipefail
+          [[ "$TENANT" =~ ^[a-z0-9]{1,20}$ && "$APP" =~ ^[a-z][a-z0-9-]{1,28}[a-z0-9]$ ]]
+          [[ "$GITOPS_REPO_URL" = "https://github.com/$GITOPS_REPO" || "$GITOPS_REPO_URL" = "https://github.com/$GITOPS_REPO.git" ]]
+          # Worker configuration is provisioned by the administrator, never downloaded from the app artifact.
+          test "$RAILSHOT_OBSERVER_CLUSTER" = "$REGISTERED_CLUSTER"
+          test -n "$KUBECONFIG" && test -r "$KUBECONFIG"
+          command -v kubectl
+          kubectl auth can-i get applications.argoproj.io --namespace=argocd --quiet
+          if kubectl auth can-i get secrets --namespace=argocd --quiet; then exit 1; fi
+          if kubectl auth can-i patch applications.argoproj.io --namespace=argocd --quiet; then exit 1; fi
+      - name: Commit rendered app (serialized for this GitOps repository)
+        run: |
+          set -euo pipefail
+          dest="gitops/apps/$GITOPS_CLUSTER/$TENANT/$APP"
+          rm -rf "$dest" && mkdir -p "$dest" && cp -R "$CD_DIR/out/rendered/." "$dest/"
+          cd gitops
+          git config user.name "railshot-bot" && git config user.email "railshot-bot@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then git commit -qm "deploy $TENANT/$APP from ${GITHUB_SHA::12}"; fi
+          pushed=false
+          for i in 1 2 3; do
+            if git pull -q --rebase && git push -q; then pushed=true; break; fi
+            sleep 3
+          done
+          test "$pushed" = true
+          git rev-parse HEAD > "$CD_DIR/deployed-revision.txt"
+      - name: Observe Argo locally while holding the GitOps commit lock
+        env: {GITOPS_REPO_URL: "${{ vars.GITOPS_REPO_URL }}"}
+        run: |
+          set -euo pipefail
+          python3 .railshot/ci/verify_deployment.py "t-$TENANT-$APP" "$(cat "$CD_DIR/deployed-revision.txt")" "$CD_DIR/out/images.json" \
+            --repo-url "$GITOPS_REPO_URL" --path "apps/$GITOPS_CLUSTER/$TENANT/$APP" > "$CD_DIR/observation.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.cd_workspace.outcome == 'success'
+        with:
+          name: deployment-observation-${{ github.run_attempt }}
+          path: |
+            ${{ env.CD_DIR }}/observation.json
+            ${{ env.CD_DIR }}/deployed-revision.txt
+          if-no-files-found: warn
+
+  reachability:
+    needs: [gitops, release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
     permissions: {}
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with: {name: rendered, path: out}
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: {repository: "${{ vars.GITOPS_REPO }}", token: "${{ secrets.GITOPS_TOKEN }}", path: gitops}
-      - name: Commit rendered app (serialized by the concurrency group)
+        with: {artifact-ids: "${{ needs.release.outputs.rendered_id }}", path: out, merge-multiple: true}
+      - name: Verify public reachability after Argo evidence
         run: |
           set -euo pipefail
-          dest="gitops/apps/aws/$TENANT/$APP"
-          rm -rf "$dest" && mkdir -p "$dest" && cp -R out/rendered/. "$dest/"
-          cd gitops
-          git config user.name "railshot-bot" && git config user.email "railshot-bot@users.noreply.github.com"
-          git add -A && git commit -qm "deploy $TENANT/$APP from ${GITHUB_SHA::12}" || { echo "no change"; exit 0; }
-          for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 3; done
-      - name: Verify the public URL, revert on failure (LKG)
-        run: |
-          set -euo pipefail
-          url=$(jq -r .url out/render.json)
+          url=$(jq -er .probe_url out/render.json)
           for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url/" || true)
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url" || true)
             case "$code" in 2*|3*) echo "live: $url"; echo "### $url" >> "$GITHUB_STEP_SUMMARY"; exit 0;; esac
             sleep 10
           done
-          echo "not live after 10 minutes (last $code); reverting" >&2
-          cd gitops && git revert --no-edit HEAD && git push -q
+          echo "reachability failed (last $code); operator must verify Argo revision before rollback" >&2
           exit 1

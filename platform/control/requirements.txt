@@ -1,0 +1,6 @@
+# Control service persistence only; the CI worker does not need these packages.
+SQLAlchemy==2.0.54
+alembic==1.20.0
+psycopg[binary]==3.3.3
+PyYAML==6.0.3
+jsonschema==4.26.0

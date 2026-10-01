@@ -13,6 +13,7 @@ spec:
     - {group: "", kind: Namespace}
   namespaceResourceWhitelist:
     - {group: apps, kind: Deployment}
+    - {group: keda.sh, kind: ScaledObject}            # renderer-approved CPU/memory scalers only
     - {group: "", kind: Service}
     - {group: batch, kind: Job}
     - {group: networking.k8s.io, kind: NetworkPolicy}
@@ -24,8 +25,6 @@ spec:
     - {group: postgresql.cnpg.io, kind: DatabaseRole}
     - {group: external-secrets.io, kind: ExternalSecret}
     - {group: generators.external-secrets.io, kind: Password}
-    - {group: argoproj.io, kind: Rollout}
-    - {group: argoproj.io, kind: AnalysisTemplate}
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
@@ -59,9 +58,14 @@ spec:
       destination:
         server: https://kubernetes.default.svc
         namespace: 't-{{ index .path.segments 2 }}-{{ .path.basename }}'
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jqPathExpressions:
+            - 'select(.metadata.labels["railshot.dev/replica-owner"] == "keda") | .spec.replicas'
       syncPolicy:
         automated: {prune: true, selfHeal: true}
-        syncOptions: [CreateNamespace=true, ServerSideApply=true, PruneLast=true, FailOnSharedResource=true]
+        syncOptions: [CreateNamespace=true, ServerSideApply=true, PruneLast=true, FailOnSharedResource=true, RespectIgnoreDifferences=true]
         managedNamespaceMetadata:
           labels:
             pod-security.kubernetes.io/enforce: restricted

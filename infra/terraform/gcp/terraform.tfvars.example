@@ -1,0 +1,28 @@
+# Existing project/billing/APIs and administrator credentials must be prepared separately.
+project_id = "replace-project-id"
+region     = "asia-northeast3"
+zone       = "asia-northeast3-a"
+name       = "railshot-gcp"
+target_id  = "gcp-seoul-poc"
+
+# Resolve the image once, inspect it, and paste its exact public image name.
+boot_image = "projects/ubuntu-os-cloud/global/images/REPLACE_WITH_UBUNTU_2404_AMD64_IMAGE"
+machine_type = "e2-standard-4"
+boot_disk_gib = 30
+data_disk_gib = 100
+initialize_empty_data_disk = true # Only for this module's newly created blank data disk.
+
+# Both ports are closed by default; explicitly enable public app HTTP when needed.
+allow_http  = false
+allow_https = false
+allow_iap_ssh = false # Requires separate operator IAP + OS Login permissions.
+max_run_duration_seconds = null # Set 7200 for a two-hour STOP limit per VM start.
+web_source_ranges = ["0.0.0.0/0"]
+
+node_repo = "https://github.com/REPLACE_OWNER/REPLACE_REPO"
+node_ref  = "REPLACE_WITH_PUBLISHED_40_HEX_GCP_CAPABLE_COMMIT"
+gitops_repo     = "https://github.com/REPLACE_OWNER/REPLACE_GITOPS_REPO"
+gitops_path     = "clusters/gcp/platform"
+gitops_revision = "main"
+
+owner_ref = "terraform:registered-state:REPLACE_WITH_OWNER"

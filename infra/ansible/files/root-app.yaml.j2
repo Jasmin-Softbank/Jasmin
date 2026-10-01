@@ -7,8 +7,8 @@ spec:
   project: default
   source:
     repoURL: {{ gitops_repo }}
-    targetRevision: main
-    path: clusters/aws/platform
+    targetRevision: {{ gitops_revision }}
+    path: {{ gitops_path }}
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

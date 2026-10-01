@@ -11,11 +11,33 @@ data "aws_subnets" "default" {
   }
 }
 
-data "aws_ssm_parameter" "ubuntu" {
-  name = "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
+data "aws_subnet" "selected" { id = sort(data.aws_subnets.default.ids)[0] }
+data "aws_ami" "ubuntu" {
+  owners = ["099720109477"] # Canonical
+  filter {
+    name   = "image-id"
+    values = [var.ami_id]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
+  }
 }
 
 data "aws_caller_identity" "me" {}
+
+locals {
+  # Keep in sync with cloud-init's two optional bootstrap credential references.
+  # The control operator's auth parameter must never be readable by an app node.
+  node_parameter_arns = [
+    for name in ["gitops-read-token", "ghcr-read-token"] :
+    "arn:aws:ssm:${var.region}:${data.aws_caller_identity.me.account_id}:parameter/${var.name}/${name}"
+  ]
+}
 
 resource "aws_security_group" "node" {
   name        = "${var.name}-node"
@@ -65,7 +87,13 @@ resource "aws_iam_role_policy" "node_params" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["ssm:GetParameter"]
-      Resource = "arn:aws:ssm:${var.region}:${data.aws_caller_identity.me.account_id}:parameter/${var.name}/*"
+      Resource = local.node_parameter_arns
+      }, {
+      # AmazonSSMManagedInstanceCore also grants these reads on '*'. An additional
+      # scoped Allow cannot narrow that grant, so deny every other parameter.
+      Effect      = "Deny"
+      Action      = ["ssm:GetParameter", "ssm:GetParameters"]
+      NotResource = local.node_parameter_arns
       }, {
       Effect    = "Allow"
       Action    = ["kms:Decrypt"]
@@ -81,9 +109,9 @@ resource "aws_iam_instance_profile" "node" {
 }
 
 resource "aws_instance" "node" {
-  ami                    = data.aws_ssm_parameter.ubuntu.value
+  ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type
-  subnet_id              = data.aws_subnets.default.ids[0]
+  subnet_id              = data.aws_subnet.selected.id
   vpc_security_group_ids = [aws_security_group.node.id]
   iam_instance_profile   = aws_iam_instance_profile.node.name
 
@@ -92,18 +120,14 @@ resource "aws_instance" "node" {
     http_put_response_hop_limit = 1 # pods cannot reach instance credentials
   }
   root_block_device {
-    volume_type = "gp3"
-    volume_size = var.root_volume_gb
-    encrypted   = true
+    volume_type           = "gp3"
+    volume_size           = var.root_volume_gb
+    encrypted             = true
+    delete_on_termination = false # Old root data must survive an explicitly approved migration/replacement.
   }
-  user_data = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    node_repo   = var.node_repo
-    node_ref    = var.node_ref
-    gitops_repo = var.gitops_repo
-    region      = var.region
-    name        = var.name
-  })
-  user_data_replace_on_change = false # later changes arrive through ansible-pull, not a new instance
+  user_data = local.cloud_init
+  credit_specification { cpu_credits = "standard" }
+  user_data_replace_on_change = false # guest changes require a separate approved configuration job
   tags                        = { Name = "${var.name}-node" }
 }
 
@@ -153,4 +177,35 @@ resource "aws_budgets_budget" "monthly" {
     notification_type          = "FORECASTED"
     subscriber_email_addresses = [var.budget_email]
   }
+}
+
+resource "aws_ebs_volume" "data" {
+  availability_zone = data.aws_subnet.selected.availability_zone
+  type              = "gp3"
+  size              = var.data_disk_gib
+  encrypted         = true
+  tags              = { Name = "${var.name}-data", Target = var.target_id, Retention = "retain-until-approved" }
+  lifecycle { prevent_destroy = true }
+}
+resource "aws_volume_attachment" "data" {
+  device_name                    = "/dev/sdf"
+  volume_id                      = aws_ebs_volume.data.id
+  instance_id                    = aws_instance.node.id
+  force_detach                   = false
+  stop_instance_before_detaching = false # Caller must complete the separate drain/stop maintenance operation.
+}
+locals {
+  cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
+    node_config = yamlencode({
+      name               = var.name, node_name = coalesce(var.node_name, var.name), cloud_provider = "aws", region = var.region,
+      gitops_repo        = var.gitops_repo, gitops_path = var.gitops_path, gitops_revision = var.gitops_revision,
+      gitops_token_param = "/${var.name}/gitops-read-token", ghcr_token_param = "/${var.name}/ghcr-read-token"
+    })
+    bootstrap_manifest = jsonencode({ method = "pinned-public-git", revision = var.node_ref, image_ref = var.ami_id })
+    bootstrap_script = templatefile("${path.module}/bootstrap.sh.tftpl", {
+      device                     = "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_${replace(aws_ebs_volume.data.id, "-", "")}",
+      initialize_empty_data_disk = var.initialize_empty_data_disk ? "true" : "false",
+      node_repo                  = var.node_repo, node_ref = var.node_ref
+    })
+  })
 }

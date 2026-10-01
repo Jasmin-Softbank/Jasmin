@@ -1,0 +1,141 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RAILSHOT topology draft v1; review data, never an apply plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "status",
+    "intent",
+    "nodes",
+    "edges",
+    "assumptions",
+    "required_capabilities",
+    "evidence_refs"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "DRAFT"
+    },
+    "intent": {
+      "enum": [
+        "create",
+        "change"
+      ]
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "managed_by"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,47}$"
+          },
+          "kind": {
+            "enum": [
+              "vm",
+              "cluster",
+              "service",
+              "database",
+              "network",
+              "gateway",
+              "registry",
+              "agent",
+              "runner",
+              "control"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[^<>\\x00-\\x1f]+$"
+          },
+          "managed_by": {
+            "enum": [
+              "terraform",
+              "ansible",
+              "argocd",
+              "external"
+            ]
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "maxItems": 48,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to",
+          "kind"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,47}$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,47}$"
+          },
+          "kind": {
+            "enum": [
+              "depends_on",
+              "routes_to",
+              "deploys_to",
+              "runs_on",
+              "reads_from"
+            ]
+          }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 250,
+        "pattern": "^[^<>\\x00-\\x1f]+$"
+      }
+    },
+    "required_capabilities": {
+      "type": "array",
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]{0,47}$"
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160,
+        "pattern": "^[^<>\\x00-\\x1f]+$"
+      }
+    }
+  }
+}

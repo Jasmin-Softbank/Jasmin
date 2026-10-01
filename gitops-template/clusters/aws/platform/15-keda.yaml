@@ -1,0 +1,19 @@
+# Installation is platform-owned. It does not enable user autoscaling admission by itself.
+# Official chart/app 2.21.0; tested Kubernetes window 1.34–1.36 matches the platform K3s 1.36 pin.
+# Chart SHA256 a7da56bf41a33dad9d2fc82a6fdecee552fff947d80bf1e1dbcf4db0f9e26dee.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keda
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
+spec:
+  project: default
+  source:
+    repoURL: https://kedacore.github.io/charts
+    chart: keda
+    targetRevision: 2.21.0
+  destination: {server: https://kubernetes.default.svc, namespace: keda}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
