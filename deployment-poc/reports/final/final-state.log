@@ -1,0 +1,13 @@
+NAME                   STATUS   ROLES           AGE   VERSION         INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+lima-jasmin-poc-test   Ready    control-plane   96s   v1.34.11+k3s1   192.168.5.15   <none>        Ubuntu 24.04.4 LTS   6.8.0-134-generic   containerd://2.2.7-k3s1
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                SELECTOR
+deployment.apps/jasmin-sample   1/1     1            1           13s   nginx        nginx:1.28.0-alpine   app=jasmin-sample
+
+NAME                                 READY   STATUS    RESTARTS   AGE   IP           NODE                   NOMINATED NODE   READINESS GATES
+pod/jasmin-sample-7b477778d9-zlkh4   1/1     Running   0          13s   10.42.0.92   lima-jasmin-poc-test   <none>           <none>
+
+NAME                    TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE   SELECTOR
+service/jasmin-sample   NodePort   10.43.97.102   <none>        80:30080/TCP   13s   app=jasmin-sample
+
+NAME                                                 ADDRESSTYPE   PORTS   ENDPOINTS    AGE
+endpointslice.discovery.k8s.io/jasmin-sample-xjhch   IPv4          80      10.42.0.92   13s

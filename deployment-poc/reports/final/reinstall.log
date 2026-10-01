@@ -1,0 +1,827 @@
+[2026-10-01T12:55:22Z] [preflight] 사전 조건 확인 완료. 첫 실행은 이미지 다운로드 때문에 몇 분 걸릴 수 있습니다.
+[2026-10-01T12:55:22Z] [install-k3s] 시작: install-k3s
+net.ipv4.ip_forward = 1
+[2026-10-01T12:55:22Z] [install-k3s] 공식 installer로 K3s v1.34.11+k3s1 설치 (kube-proxy 유지)
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0100 38693  100 38693    0     0  67245      0 --:--:-- --:--:-- --:--:-- 67292
+[INFO]  Using v1.34.11+k3s1 as release
+[INFO]  Downloading hash https://github.com/k3s-io/k3s/releases/download/v1.34.11%2Bk3s1/sha256sum-arm64.txt
+[INFO]  Downloading binary https://github.com/k3s-io/k3s/releases/download/v1.34.11%2Bk3s1/k3s-arm64
+[INFO]  Verifying binary download
+[INFO]  Installing k3s to /usr/local/bin/k3s
+[INFO]  Skipping installation of SELinux RPM
+[INFO]  Creating /usr/local/bin/kubectl symlink to k3s
+[INFO]  Creating /usr/local/bin/crictl symlink to k3s
+[INFO]  Creating /usr/local/bin/ctr symlink to k3s
+[INFO]  Creating killall script /usr/local/bin/k3s-killall.sh
+[INFO]  Creating uninstall script /usr/local/bin/k3s-uninstall.sh
+[INFO]  env: Creating environment file /etc/systemd/system/k3s.service.env
+[INFO]  systemd: Creating service file /etc/systemd/system/k3s.service
+[INFO]  systemd: Enabling k3s unit
+Created symlink /etc/systemd/system/multi-user.target.wants/k3s.service → /etc/systemd/system/k3s.service.
+[INFO]  systemd: Starting k3s
+[2026-10-01T12:55:32Z] [install-k3s] Kubernetes API 준비 대기. Node Ready는 Cilium 설치 후 확인합니다.
+NAME                   STATUS     ROLES    AGE   VERSION         INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+lima-jasmin-poc-test   NotReady   <none>   1s    v1.34.11+k3s1   192.168.5.15   <none>        Ubuntu 24.04.4 LTS   6.8.0-134-generic   containerd://2.2.7-k3s1
+[2026-10-01T12:55:33Z] [install-k3s] 완료: install-k3s
+[2026-10-01T12:55:33Z] [install-cilium] 시작: install-cilium
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+ 31 69.5M   31 22.0M    0     0  21.1M      0  0:00:03  0:00:01  0:00:02 21.1M 68 69.5M   68 47.3M    0     0  22.7M      0  0:00:03  0:00:02  0:00:01 24.4M 84 69.5M   84 58.9M    0     0  19.3M      0  0:00:03  0:00:03 --:--:-- 18.4M100 69.5M  100 69.5M    0     0  17.9M      0  0:00:03  0:00:03 --:--:-- 16.7M
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+100    92  100    92    0     0    256      0 --:--:-- --:--:-- --:--:--   256
+cilium-linux-arm64.tar.gz: OK
+[2026-10-01T12:55:39Z] [install-cilium] 공식 Cilium CLI로 설치: 1.20.2
+ℹ️  Using Cilium version 1.20.2
+🔮 Auto-detected cluster name: default
+🔮 Auto-detected kube-proxy has not been installed
+ℹ️  Cilium will fully replace all functionalities of kube-proxy
+[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m, [33m1 warnings[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Pending: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-envoy       cilium-envoy-gxjk8                pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m, [33m1 warnings[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Pending: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-envoy       cilium-envoy-gxjk8                pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m, [33m1 warnings[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Pending: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-envoy       cilium-envoy-gxjk8                pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m, [33m1 warnings[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Pending: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-envoy       cilium-envoy-gxjk8                pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m, [33m1 warnings[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Pending: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-envoy       cilium-envoy-gxjk8                pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m, [33m1 warnings[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Pending: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-envoy       cilium-envoy-gxjk8                pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m, [33m1 warnings[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Pending: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-envoy       cilium-envoy-gxjk8                pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m, [33m1 warnings[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Pending: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-envoy       cilium-envoy-gxjk8                pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m, [33m1 warnings[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Pending: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-envoy       cilium-envoy-gxjk8                pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m, [33m1 warnings[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Pending: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-envoy       cilium-envoy-gxjk8                pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m, [33m2 warnings[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Unavailable: [31m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Pending: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium                            1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy                      1 pods of DaemonSet cilium-envoy are not ready
+                       cilium-operator    cilium-operator                   1 pods of Deployment cilium-operator are not ready
+Warnings:              cilium             cilium-9kgbh                      pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+                       cilium-operator    cilium-operator-7dcb85f7-nkxj4    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy    1 pods of DaemonSet cilium-envoy are not ready
+Warnings:              cilium             cilium-9kgbh    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy    1 pods of DaemonSet cilium-envoy are not ready
+Warnings:              cilium             cilium-9kgbh    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy    1 pods of DaemonSet cilium-envoy are not ready
+Warnings:              cilium             cilium-9kgbh    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy    1 pods of DaemonSet cilium-envoy are not ready
+Warnings:              cilium             cilium-9kgbh    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy    1 pods of DaemonSet cilium-envoy are not ready
+Warnings:              cilium             cilium-9kgbh    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy    1 pods of DaemonSet cilium-envoy are not ready
+Warnings:              cilium             cilium-9kgbh    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy    1 pods of DaemonSet cilium-envoy are not ready
+Warnings:              cilium             cilium-9kgbh    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy    1 pods of DaemonSet cilium-envoy are not ready
+Warnings:              cilium             cilium-9kgbh    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+                       cilium-envoy       cilium-envoy    1 pods of DaemonSet cilium-envoy are not ready
+Warnings:              cilium             cilium-9kgbh    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m3 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Unavailable: [31m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Running: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+                       cilium             cilium-9kgbh    controller sync-to-k8s-ciliumendpoint (1563) is failing since 2s (1x): controller sync-to-k8s-ciliumendpoint (1563) DoFunc is nil
+                       cilium             cilium-9kgbh    controller sync-to-k8s-ciliumendpoint (1660) is failing since 2s (1x): controller sync-to-k8s-ciliumendpoint (1660) DoFunc is nil
+                       cilium-envoy       cilium-envoy    1 pods of DaemonSet cilium-envoy are not ready
+Warnings:              cilium             cilium-9kgbh    1 endpoints are not ready
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m2 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Running: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium-9kgbh    controller sync-to-k8s-ciliumendpoint (1563) is failing since 5s (1x): controller sync-to-k8s-ciliumendpoint (1563) DoFunc is nil
+                       cilium             cilium-9kgbh    controller sync-to-k8s-ciliumendpoint (1660) is failing since 5s (1x): controller sync-to-k8s-ciliumendpoint (1660) DoFunc is nil
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [32mOK[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Running: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          0/1 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+node/lima-jasmin-poc-test condition met
+Waiting for deployment "coredns" rollout to finish: 0 of 1 updated replicas are available...
+deployment "coredns" successfully rolled out
+NAME                   STATUS   ROLES           AGE   VERSION         INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+lima-jasmin-poc-test   Ready    control-plane   83s   v1.34.11+k3s1   192.168.5.15   <none>        Ubuntu 24.04.4 LTS   6.8.0-134-generic   containerd://2.2.7-k3s1
+NAME           READY   STATUS    RESTARTS   AGE   IP             NODE                   NOMINATED NODE   READINESS GATES
+cilium-9kgbh   1/1     Running   0          76s   192.168.5.15   lima-jasmin-poc-test   <none>           <none>
+[2026-10-01T12:56:55Z] [install-cilium] 완료: install-cilium
+[2026-10-01T12:56:55Z] [deploy-sample] 시작: deploy-sample
+namespace/jasmin-poc created
+configmap/jasmin-sample-html created
+deployment.apps/jasmin-sample created
+service/jasmin-sample created
+Waiting for deployment "jasmin-sample" rollout to finish: 0 of 1 updated replicas are available...
+Waiting for deployment "jasmin-sample" rollout to finish: 0 of 1 updated replicas are available...
+deployment "jasmin-sample" successfully rolled out
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                SELECTOR
+deployment.apps/jasmin-sample   1/1     1            1           11s   nginx        nginx:1.28.0-alpine   app=jasmin-sample
+
+NAME                                 READY   STATUS    RESTARTS   AGE   IP           NODE                   NOMINATED NODE   READINESS GATES
+pod/jasmin-sample-7b477778d9-zlkh4   1/1     Running   0          11s   10.42.0.92   lima-jasmin-poc-test   <none>           <none>
+
+NAME                    TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE   SELECTOR
+service/jasmin-sample   NodePort   10.43.97.102   <none>        80:30080/TCP   11s   app=jasmin-sample
+
+NAME                                                 ADDRESSTYPE   PORTS   ENDPOINTS    AGE
+endpointslice.discovery.k8s.io/jasmin-sample-xjhch   IPv4          80      10.42.0.92   11s
+[2026-10-01T12:57:06Z] [deploy-sample] 완료: deploy-sample
+[2026-10-01T12:57:06Z] [verify] 시작: verify
+[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [32mOK[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Running: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+node/lima-jasmin-poc-test condition met
+deployment "jasmin-sample" successfully rolled out
+[2026-10-01T12:57:07Z] [verify] Pod → DNS → ClusterIP Service → nginx 네트워크 확인
+[2026-10-01T12:57:07Z] [verify] HTTP 확인: http://192.168.5.15:30080/
+[2026-10-01T12:57:07Z] [verify] PASS: HTTP 200 + Jasmin 응답 본문 (http://192.168.5.15:30080/)
+[2026-10-01T12:57:07Z] [verify] 외부 클라이언트에서 실행: curl --noproxy '*' -i http://192.168.5.15:30080/
+[2026-10-01T12:57:07Z] [verify] 이 서버에서의 curl 성공은 외부 방화벽/NAT 통과를 증명하지 않습니다.
+[2026-10-01T12:57:07Z] [verify] 완료: verify
+[2026-10-01T12:57:07Z] [verify] SUCCESS: 단일 노드 runtime, Cilium, nginx Service, 서버 HTTP 200 확인 완료.
+[2026-10-01T12:57:07Z] [verify] 서버 밖의 접근은 README의 별도 클라이언트 curl 절차로 확인하세요.

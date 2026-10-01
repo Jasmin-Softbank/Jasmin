@@ -1,0 +1,7 @@
+Server:		10.43.0.10
+Address:	10.43.0.10:53
+
+
+Name:	jasmin-sample.jasmin-poc.svc.cluster.local
+Address: 10.43.156.155
+

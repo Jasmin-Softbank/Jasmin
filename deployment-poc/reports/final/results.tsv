@@ -1,0 +1,20 @@
+status	test	duration_seconds	detail
+SKIP	Clean install	0	existing K3s
+PASS	K3s ready	1	
+PASS	Cilium healthy	0	
+PASS	Workload deployed / Service reachable / DNS	1	Pod DNS + ClusterIP + node HTTP 200/body
+PASS	Idempotency (two repeats)	8	Deployment and Pod UIDs preserved
+PASS	Pod recovery	6	new Pod UID and endpoint restored
+PASS	Rollout restart under HTTP traffic	21	zero failed HTTP requests during restart
+PASS	Image update under HTTP traffic	25	nginx:1.28.1-alpine healthy; zero failed HTTP requests
+PASS	Malformed image rejection	24	nonzero exit and InvalidImageName diagnostic
+PASS	Missing image tag rejection	23	nonzero exit and image-pull diagnostic
+PASS	Wrong Service port rejection	23	nonzero exit at internal Service check
+PASS	Readiness failure rejection	23	nonzero exit and readiness diagnostic
+PASS	Cilium unhealthy rejection and recovery	38	
+PASS	Minimal NetworkPolicy allow / deny	43	both allowed before; only approved client allowed after; denied client DNS still works
+PASS	Basic load (100 requests / concurrency 8)	0	HTTP 200 and response body on every request
+PASS	K3s service restart / recovery	35	endpoint recovered; disruption failures recorded separately
+PASS	Cilium absent rejection / reinstall	49	
+PASS	Sample cleanup / redeployment	35	
+PASS	Full cleanup / reinstall	122	official uninstall followed by successful installation

@@ -1,0 +1,4 @@
+networkpolicy.networking.k8s.io "poc-test-sample-ingress" deleted from jasmin-poc namespace
+networkpolicy.networking.k8s.io "poc-test-client-egress" deleted from jasmin-poc namespace
+pod "poc-allowed" deleted from jasmin-poc namespace
+pod "poc-denied" deleted from jasmin-poc namespace

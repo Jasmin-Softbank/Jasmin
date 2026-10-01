@@ -1,0 +1,2 @@
+Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+pod "jasmin-sample-7b477778d9-wkglv" force deleted from jasmin-poc namespace

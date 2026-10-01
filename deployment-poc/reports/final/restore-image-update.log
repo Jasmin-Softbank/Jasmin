@@ -1,0 +1,21 @@
+namespace/jasmin-poc unchanged
+configmap/jasmin-sample-html unchanged
+deployment.apps/jasmin-sample configured
+service/jasmin-sample unchanged
+Waiting for deployment "jasmin-sample" rollout to finish: 0 out of 1 new replicas have been updated...
+Waiting for deployment "jasmin-sample" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "jasmin-sample" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "jasmin-sample" rollout to finish: 1 old replicas are pending termination...
+deployment "jasmin-sample" successfully rolled out
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS   IMAGES                SELECTOR
+deployment.apps/jasmin-sample   1/1     1            1           2m5s   nginx        nginx:1.28.0-alpine   app=jasmin-sample
+
+NAME                                 READY   STATUS        RESTARTS   AGE   IP            NODE                   NOMINATED NODE   READINESS GATES
+pod/jasmin-sample-559bf96f74-9kcfr   1/1     Running       0          8s    10.42.0.226   lima-jasmin-poc-test   <none>           <none>
+pod/jasmin-sample-5768d45cc5-fljs4   1/1     Terminating   0          31s   10.42.0.139   lima-jasmin-poc-test   <none>           <none>
+
+NAME                    TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE    SELECTOR
+service/jasmin-sample   NodePort   10.43.156.155   <none>        80:30080/TCP   2m4s   app=jasmin-sample
+
+NAME                                                 ADDRESSTYPE   PORTS   ENDPOINTS                 AGE
+endpointslice.discovery.k8s.io/jasmin-sample-hngkq   IPv4          80      10.42.0.139,10.42.0.226   2m4s

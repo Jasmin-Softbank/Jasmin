@@ -1,0 +1,11 @@
+HTTP/1.1 200 OK
+Server: nginx/1.28.0
+Date: Thu, 01 Oct 2026 13:07:24 GMT
+Content-Type: text/html
+Content-Length: 25
+Last-Modified: Thu, 01 Oct 2026 12:56:55 GMT
+Connection: keep-alive
+ETag: "6abe5897-19"
+Accept-Ranges: bytes
+
+Jasmin Deployment PoC OK

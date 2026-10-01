@@ -1,0 +1,13 @@
+test_all_requests_have_correct_body (test_load.LoadTests.test_all_requests_have_correct_body) ... ok
+test_http_500_is_counted_even_when_disruption_is_expected (test_load.LoadTests.test_http_500_is_counted_even_when_disruption_is_expected) ... ok
+test_wrong_application_returns_failure (test_load.LoadTests.test_wrong_application_returns_failure) ... ok
+test_cilium_failure_preserves_exit_code_and_stage (test_verify.VerifyTests.test_cilium_failure_preserves_exit_code_and_stage) ... ok
+test_http_200_from_wrong_application_fails (test_verify.VerifyTests.test_http_200_from_wrong_application_fails) ... ok
+test_http_200_with_expected_body_passes (test_verify.VerifyTests.test_http_200_with_expected_body_passes) ... ok
+test_http_503_fails_even_with_expected_body (test_verify.VerifyTests.test_http_503_fails_even_with_expected_body) ... ok
+test_internal_service_failure_blocks_nodeport_success (test_verify.VerifyTests.test_internal_service_failure_blocks_nodeport_success) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 14.094s
+
+OK

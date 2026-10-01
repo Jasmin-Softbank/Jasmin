@@ -1,0 +1,3 @@
+wget: download timed out
+command terminated with exit code 1
+[2026-10-01T12:43:49Z] [Minimal NetworkPolicy allow / deny] ERROR: 단계=Minimal NetworkPolicy allow / deny, line=16, exit=1

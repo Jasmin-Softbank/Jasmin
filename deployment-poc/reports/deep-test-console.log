@@ -1,0 +1,46 @@
+[RUN] Clean install
+[SKIP] Clean install: existing K3s; cleanup/reinstall is tested later
+[RUN] K3s ready
+[PASS] K3s ready 
+[RUN] Cilium healthy
+[PASS] Cilium healthy 
+[RUN] Workload deployed / Service reachable / DNS
+[PASS] Workload deployed / Service reachable / DNS Pod DNS + ClusterIP + node HTTP 200/body
+[RUN] Idempotency (two repeats)
+[PASS] Idempotency (two repeats) Deployment and Pod UIDs preserved
+[RUN] Pod recovery
+[PASS] Pod recovery new Pod UID and endpoint restored
+[RUN] Rollout restart under HTTP traffic
+[PASS] Rollout restart under HTTP traffic zero failed HTTP requests during restart
+[RUN] Image update under HTTP traffic
+[PASS] Image update under HTTP traffic nginx:1.28.1-alpine healthy; zero failed HTTP requests
+[RUN] Malformed image rejection
+[2026-10-01T12:41:45Z] [Malformed image rejection] ERROR: 단계=Malformed image rejection, line=60, exit=1
+[PASS] Malformed image rejection nonzero exit and InvalidImageName diagnostic
+[RUN] Missing image tag rejection
+[2026-10-01T12:42:08Z] [Missing image tag rejection] ERROR: 단계=Missing image tag rejection, line=60, exit=1
+[PASS] Missing image tag rejection nonzero exit and image-pull diagnostic
+[RUN] Wrong Service port rejection
+[2026-10-01T12:42:34Z] [Wrong Service port rejection] ERROR: 단계=Wrong Service port rejection, line=60, exit=1
+[PASS] Wrong Service port rejection nonzero exit at internal Service check
+[RUN] Readiness failure rejection
+[2026-10-01T12:42:57Z] [Readiness failure rejection] ERROR: 단계=Readiness failure rejection, line=60, exit=1
+[PASS] Readiness failure rejection nonzero exit and readiness diagnostic
+[RUN] Cilium unhealthy rejection and recovery
+[2026-10-01T12:43:23Z] [Cilium unhealthy rejection and recovery] ERROR: 단계=Cilium unhealthy rejection and recovery, line=60, exit=1
+[PASS] Cilium unhealthy rejection and recovery 
+[RUN] Minimal NetworkPolicy allow / deny
+[2026-10-01T12:43:49Z] [Minimal NetworkPolicy allow / deny] ERROR: 단계=Minimal NetworkPolicy allow / deny, line=165, exit=1
+[PASS] Minimal NetworkPolicy allow / deny both allowed before; only approved client allowed after; denied client DNS still works
+[RUN] Basic load (100 requests / concurrency 8)
+[PASS] Basic load (100 requests / concurrency 8) HTTP 200 and response body on every request
+[RUN] K3s service restart / recovery
+[PASS] K3s service restart / recovery endpoint recovered; disruption failures recorded separately
+[RUN] Cilium absent rejection / reinstall
+[2026-10-01T12:45:33Z] [Cilium absent rejection / reinstall] ERROR: 단계=Cilium absent rejection / reinstall, line=60, exit=1
+[PASS] Cilium absent rejection / reinstall 
+[RUN] Sample cleanup / redeployment
+[PASS] Sample cleanup / redeployment 
+[RUN] Full cleanup / reinstall
+[PASS] Full cleanup / reinstall official uninstall followed by successful installation
+[RESULT] passes=18 exit=0 evidence=/var/tmp/jasmin-deep-test

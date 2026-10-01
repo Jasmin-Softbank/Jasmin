@@ -1,0 +1,1 @@
+{"url": "http://127.0.0.1:30081/", "requests": 100, "concurrency": 8, "failures": 100, "error_rate": 1.0, "elapsed_seconds": 39.045, "max_latency_seconds": 3.006, "error_examples": ["timed out"]}

@@ -1,0 +1,45 @@
+deployment.apps/jasmin-sample image updated
+original_verify_exit=1
+[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [32mOK[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Running: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          3/3 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+node/lima-jasmin-poc-test condition met
+Waiting for deployment "jasmin-sample" rollout to finish: 1 old replicas are pending termination...
+error: timed out waiting for the condition
+[2026-10-01T12:39:25Z] [verify] ERROR: 단계=verify, line=16, exit=1
+[2026-10-01T12:39:25Z] [verify] FAILED: 단계=verify, exit=1. 원인을 해결한 뒤 install.sh를 다시 실행하세요.
+[2026-10-01T12:39:25Z] [verify] 진단: journalctl -u k3s -n 100; k3s kubectl get pods -A -o wide; k3s kubectl get events -A --sort-by=.lastTimestamp
+namespace/jasmin-poc unchanged
+configmap/jasmin-sample-html unchanged
+deployment.apps/jasmin-sample configured
+service/jasmin-sample unchanged
+deployment "jasmin-sample" successfully rolled out
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS   IMAGES                SELECTOR
+deployment.apps/jasmin-sample   1/1     1            1           3m7s   nginx        nginx:1.28.0-alpine   app=jasmin-sample
+
+NAME                                 READY   STATUS        RESTARTS   AGE    IP            NODE                   NOMINATED NODE   READINESS GATES
+pod/jasmin-sample-5f748bf4fd-h8pz8   1/1     Running       0          3m7s   10.42.0.80    lima-jasmin-poc-test   <none>           <none>
+pod/jasmin-sample-7db76ddd88-c4br8   0/1     Terminating   0          12s    10.42.0.128   lima-jasmin-poc-test   <none>           <none>
+
+NAME                    TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE    SELECTOR
+service/jasmin-sample   NodePort   10.43.85.147   <none>        80:30080/TCP   3m7s   app=jasmin-sample
+
+NAME                                                 ADDRESSTYPE   PORTS   ENDPOINTS                AGE
+endpointslice.discovery.k8s.io/jasmin-sample-fwxps   IPv4          80      10.42.0.80,10.42.0.128   3m7s

@@ -1,0 +1,65 @@
+[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [32mOK[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Running: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+node/lima-jasmin-poc-test condition met
+deployment "jasmin-sample" successfully rolled out
+[2026-10-01T12:51:02Z] [verify] Pod → DNS → ClusterIP Service → nginx 네트워크 확인
+[2026-10-01T12:51:22Z] [verify] ERROR: 클러스터 내부 DNS/Service HTTP 확인 시간 초과
+[2026-10-01T12:51:22Z] [verify] FAILED: 단계=verify, exit=1. 원인을 해결한 뒤 install.sh를 다시 실행하세요.
+[2026-10-01T12:51:22Z] [verify] 실패 원인 진단: Pod 상태·Service·최근 이벤트
+NAMESPACE     NAME                             READY   STATUS    RESTARTS   AGE     IP             NODE                   NOMINATED NODE   READINESS GATES
+jasmin-poc    jasmin-sample-559bf96f74-9kcfr   1/1     Running   0          77s     10.42.0.226    lima-jasmin-poc-test   <none>           <none>
+kube-system   cilium-4wc67                     1/1     Running   0          4m25s   192.168.5.15   lima-jasmin-poc-test   <none>           <none>
+kube-system   cilium-envoy-dszq5               1/1     Running   0          4m25s   192.168.5.15   lima-jasmin-poc-test   <none>           <none>
+kube-system   cilium-operator-7dcb85f7-d6nvt   1/1     Running   0          4m25s   192.168.5.15   lima-jasmin-poc-test   <none>           <none>
+kube-system   coredns-fddcf74bb-7r9x4          1/1     Running   0          4m27s   10.42.0.84     lima-jasmin-poc-test   <none>           <none>
+NAME                    TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE     SELECTOR
+service/jasmin-sample   NodePort   10.43.156.155   <none>        80:30080/TCP   3m13s   app=jasmin-sample
+
+NAME                                                 ADDRESSTYPE   PORTS   ENDPOINTS     AGE
+endpointslice.discovery.k8s.io/jasmin-sample-hngkq   IPv4          81      10.42.0.226   3m13s
+jasmin-sample-559bf96f74-9kcfr
+nginx:  
+jasmin-poc    87s         Normal    Killing                          pod/jasmin-sample-559bf96f74-qq9gk    Stopping container nginx
+jasmin-poc    87s         Normal    SuccessfulDelete                 replicaset/jasmin-sample-559bf96f74   Deleted pod: jasmin-sample-559bf96f74-qq9gk
+jasmin-poc    77s         Normal    SuccessfulCreate                 replicaset/jasmin-sample-559bf96f74   Created pod: jasmin-sample-559bf96f74-9kcfr
+jasmin-poc    77s         Normal    ScalingReplicaSet                deployment/jasmin-sample              Scaled up replica set jasmin-sample-559bf96f74 from 0 to 1
+jasmin-poc    76s         Normal    Pulled                           pod/jasmin-sample-559bf96f74-9kcfr    Container image "nginx:1.28.0-alpine" already present on machine
+jasmin-poc    76s         Normal    Created                          pod/jasmin-sample-559bf96f74-9kcfr    Created container: nginx
+jasmin-poc    76s         Normal    Started                          pod/jasmin-sample-559bf96f74-9kcfr    Started container nginx
+jasmin-poc    69s         Normal    ScalingReplicaSet                deployment/jasmin-sample              Scaled up replica set jasmin-sample-d9b548cfd from 0 to 1
+jasmin-poc    69s         Normal    SuccessfulCreate                 replicaset/jasmin-sample-d9b548cfd    Created pod: jasmin-sample-d9b548cfd-j9rhl
+jasmin-poc    69s         Normal    ScalingReplicaSet                deployment/jasmin-sample              Scaled down replica set jasmin-sample-5768d45cc5 from 1 to 0
+jasmin-poc    69s         Normal    SuccessfulDelete                 replicaset/jasmin-sample-5768d45cc5   Deleted pod: jasmin-sample-5768d45cc5-fljs4
+jasmin-poc    69s         Normal    Killing                          pod/jasmin-sample-5768d45cc5-fljs4    Stopping container nginx
+jasmin-poc    55s         Warning   Failed                           pod/jasmin-sample-d9b548cfd-j9rhl     Error: InvalidImageName
+jasmin-poc    55s         Warning   InspectFailed                    pod/jasmin-sample-d9b548cfd-j9rhl     Failed to apply default image tag "invalid@@@": couldn't parse image name "invalid@@@": invalid reference format
+jasmin-poc    46s         Normal    SuccessfulDelete                 replicaset/jasmin-sample-d9b548cfd    Deleted pod: jasmin-sample-d9b548cfd-j9rhl
+jasmin-poc    46s         Normal    ScalingReplicaSet                deployment/jasmin-sample              Scaled down replica set jasmin-sample-d9b548cfd from 1 to 0
+jasmin-poc    45s         Normal    ScalingReplicaSet                deployment/jasmin-sample              Scaled up replica set jasmin-sample-6c6dd4b4cf from 0 to 1
+jasmin-poc    44s         Normal    SuccessfulCreate                 replicaset/jasmin-sample-6c6dd4b4cf   Created pod: jasmin-sample-6c6dd4b4cf-tqzgv
+jasmin-poc    42s         Normal    BackOff                          pod/jasmin-sample-6c6dd4b4cf-tqzgv    Back-off pulling image "nginx:jasmin-poc-tag-does-not-exist"
+jasmin-poc    42s         Warning   Failed                           pod/jasmin-sample-6c6dd4b4cf-tqzgv    Error: ImagePullBackOff
+jasmin-poc    29s         Normal    Pulling                          pod/jasmin-sample-6c6dd4b4cf-tqzgv    Pulling image "nginx:jasmin-poc-tag-does-not-exist"
+jasmin-poc    28s         Warning   Failed                           pod/jasmin-sample-6c6dd4b4cf-tqzgv    Failed to pull image "nginx:jasmin-poc-tag-does-not-exist": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/library/nginx:jasmin-poc-tag-does-not-exist": failed to resolve reference "docker.io/library/nginx:jasmin-poc-tag-does-not-exist": docker.io/library/nginx:jasmin-poc-tag-does-not-exist: not found
+jasmin-poc    28s         Warning   Failed                           pod/jasmin-sample-6c6dd4b4cf-tqzgv    Error: ErrImagePull
+jasmin-poc    22s         Normal    SuccessfulDelete                 replicaset/jasmin-sample-6c6dd4b4cf   Deleted pod: jasmin-sample-6c6dd4b4cf-tqzgv
+jasmin-poc    22s         Normal    ScalingReplicaSet                deployment/jasmin-sample              (combined from similar events): Scaled down replica set jasmin-sample-6c6dd4b4cf from 1 to 0
+[2026-10-01T12:51:22Z] [verify] 진단: journalctl -u k3s -n 100; k3s kubectl get pods -A -o wide; k3s kubectl get events -A --sort-by=.lastTimestamp

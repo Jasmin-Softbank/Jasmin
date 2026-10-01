@@ -1,0 +1,17 @@
+namespace/jasmin-poc unchanged
+configmap/jasmin-sample-html unchanged
+deployment.apps/jasmin-sample configured
+service/jasmin-sample unchanged
+deployment "jasmin-sample" successfully rolled out
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE     CONTAINERS   IMAGES                SELECTOR
+deployment.apps/jasmin-sample   1/1     1            1           5m50s   nginx        nginx:1.28.0-alpine   app=jasmin-sample
+
+NAME                                 READY   STATUS        RESTARTS   AGE   IP            NODE                   NOMINATED NODE   READINESS GATES
+pod/jasmin-sample-745d6b88c7-8h4k6   0/1     Terminating   0          22s   10.42.0.224   lima-jasmin-poc-test   <none>           <none>
+pod/jasmin-sample-7bc49bb68d-76lwx   1/1     Running       0          51s   10.42.0.18    lima-jasmin-poc-test   <none>           <none>
+
+NAME                    TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE     SELECTOR
+service/jasmin-sample   NodePort   10.43.85.147   <none>        80:30080/TCP   5m50s   app=jasmin-sample
+
+NAME                                                 ADDRESSTYPE   PORTS   ENDPOINTS                AGE
+endpointslice.discovery.k8s.io/jasmin-sample-fwxps   IPv4          80      10.42.0.18,10.42.0.224   5m50s

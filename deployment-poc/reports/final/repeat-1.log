@@ -1,0 +1,91 @@
+[2026-10-01T12:49:05Z] [preflight] 사전 조건 확인 완료. 첫 실행은 이미지 다운로드 때문에 몇 분 걸릴 수 있습니다.
+[2026-10-01T12:49:05Z] [install-k3s] 시작: install-k3s
+net.ipv4.ip_forward = 1
+[2026-10-01T12:49:05Z] [install-k3s] 동일 설정/버전의 K3s 재사용
+[2026-10-01T12:49:05Z] [install-k3s] Kubernetes API 준비 대기. Node Ready는 Cilium 설치 후 확인합니다.
+NAME                   STATUS   ROLES           AGE     VERSION         INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+lima-jasmin-poc-test   Ready    control-plane   2m16s   v1.34.11+k3s1   192.168.5.15   <none>        Ubuntu 24.04.4 LTS   6.8.0-134-generic   containerd://2.2.7-k3s1
+[2026-10-01T12:49:05Z] [install-k3s] 완료: install-k3s
+[2026-10-01T12:49:05Z] [install-cilium] 시작: install-cilium
+[2026-10-01T12:49:05Z] [install-cilium] Cilium Helm release 재조정: 1.20.2
+ℹ️  Using Cilium version 1.20.2
+🔮 Auto-detected cluster name: default
+🔮 Auto-detected kube-proxy has not been installed
+ℹ️  Cilium will fully replace all functionalities of kube-proxy
+⚠️  You maybe need to restart Cilium pods for configmap changes to take effect
+[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [32mOK[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Running: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+node/lima-jasmin-poc-test condition met
+deployment "coredns" successfully rolled out
+NAME                   STATUS   ROLES           AGE     VERSION         INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME
+lima-jasmin-poc-test   Ready    control-plane   2m18s   v1.34.11+k3s1   192.168.5.15   <none>        Ubuntu 24.04.4 LTS   6.8.0-134-generic   containerd://2.2.7-k3s1
+NAME           READY   STATUS    RESTARTS   AGE     IP             NODE                   NOMINATED NODE   READINESS GATES
+cilium-4wc67   1/1     Running   0          2m10s   192.168.5.15   lima-jasmin-poc-test   <none>           <none>
+[2026-10-01T12:49:07Z] [install-cilium] 완료: install-cilium
+[2026-10-01T12:49:07Z] [deploy-sample] 시작: deploy-sample
+namespace/jasmin-poc unchanged
+configmap/jasmin-sample-html unchanged
+deployment.apps/jasmin-sample unchanged
+service/jasmin-sample unchanged
+deployment "jasmin-sample" successfully rolled out
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                SELECTOR
+deployment.apps/jasmin-sample   1/1     1            1           59s   nginx        nginx:1.28.0-alpine   app=jasmin-sample
+
+NAME                                 READY   STATUS    RESTARTS   AGE   IP            NODE                   NOMINATED NODE   READINESS GATES
+pod/jasmin-sample-7b477778d9-wkglv   1/1     Running   0          58s   10.42.0.100   lima-jasmin-poc-test   <none>           <none>
+
+NAME                    TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE   SELECTOR
+service/jasmin-sample   NodePort   10.43.156.155   <none>        80:30080/TCP   58s   app=jasmin-sample
+
+NAME                                                 ADDRESSTYPE   PORTS   ENDPOINTS     AGE
+endpointslice.discovery.k8s.io/jasmin-sample-hngkq   IPv4          80      10.42.0.100   59s
+[2026-10-01T12:49:08Z] [deploy-sample] 완료: deploy-sample
+[2026-10-01T12:49:08Z] [verify] 시작: verify
+[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [32mOK[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Running: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+node/lima-jasmin-poc-test condition met
+deployment "jasmin-sample" successfully rolled out
+[2026-10-01T12:49:08Z] [verify] Pod → DNS → ClusterIP Service → nginx 네트워크 확인
+[2026-10-01T12:49:08Z] [verify] HTTP 확인: http://192.168.5.15:30080/
+[2026-10-01T12:49:08Z] [verify] PASS: HTTP 200 + Jasmin 응답 본문 (http://192.168.5.15:30080/)
+[2026-10-01T12:49:08Z] [verify] 외부 클라이언트에서 실행: curl --noproxy '*' -i http://192.168.5.15:30080/
+[2026-10-01T12:49:08Z] [verify] 이 서버에서의 curl 성공은 외부 방화벽/NAT 통과를 증명하지 않습니다.
+[2026-10-01T12:49:08Z] [verify] 완료: verify
+[2026-10-01T12:49:08Z] [verify] SUCCESS: 단일 노드 runtime, Cilium, nginx Service, 서버 HTTP 200 확인 완료.
+[2026-10-01T12:49:08Z] [verify] 서버 밖의 접근은 README의 별도 클라이언트 curl 절차로 확인하세요.

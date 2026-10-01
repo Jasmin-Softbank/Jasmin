@@ -1,0 +1,388 @@
+[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m3 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Running: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          3/3 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          daemonset cilium is rolling out - 0 out of 1 pods updated
+                       cilium             cilium-h9xjg    unable to retrieve cilium status: command failed (pod=kube-system/cilium-h9xjg, container=cilium-agent): Internal error occurred: error executing command in container: failed to exec in container: failed to create exec "eff1bbfe5deb8513358183408131dcbf7bb77fef030d33cc495d3487c2157434": cannot exec in a stopped state
+                       cilium             cilium-h9xjg    unable to retrieve cilium endpoint information: command failed (pod=kube-system/cilium-h9xjg, container=cilium-agent): Internal error occurred: error executing command in container: failed to exec in container: failed to create exec "66a958d03704c0ef35440e456a8311da4ebca5ae92e8140f45cf620a31b2375e": ttrpc: closed
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          3/3 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             invalid@@@: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+Warnings:              cilium             cilium-cqz4z    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          3/3 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             invalid@@@: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+Warnings:              cilium             cilium-cqz4z    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          3/3 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             invalid@@@: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+Warnings:              cilium             cilium-cqz4z    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          3/3 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             invalid@@@: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+Warnings:              cilium             cilium-cqz4z    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          3/3 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             invalid@@@: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+Warnings:              cilium             cilium-cqz4z    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          3/3 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             invalid@@@: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+Warnings:              cilium             cilium-cqz4z    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m, [33m1 warnings[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [32mOK[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [32mOK[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+DaemonSet              cilium                   Desired: 1, Unavailable: [31m1/1[0m
+DaemonSet              cilium-envoy             Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Deployment             cilium-operator          Desired: 1, Ready: [32m1/1[0m, Available: [32m1/1[0m
+Containers:            cilium                   Pending: [32m1[0m
+                       cilium-envoy             Running: [32m1[0m
+                       cilium-operator          Running: [32m1[0m
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          3/3 managed by Cilium
+Helm chart version:    1.20.2
+Image versions         cilium             invalid@@@: 1
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.37.6-1789133542-cbec91f666af0bf742da986d43832932dbb26b82@sha256:af7382699576b9e65e9184efa52eeca0b58aea70ad6e511bf260c91d9f740463: 1
+                       cilium-operator    quay.io/cilium/operator-generic:v1.20.2@sha256:64d8798350e8569b8e7622563fed6e44dce2625f311e4651b774816516c744fc: 1
+Errors:                cilium             cilium          1 pods of DaemonSet cilium are not ready
+Warnings:              cilium             cilium-cqz4z    pod is pending
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [33m1 warnings[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [33m1 warnings[0m
+
+Cluster Pods:          0/0 managed by Cilium
+Helm chart version:    1.20.2
+Errors:                cilium                   cilium                   context deadline exceeded
+                       cilium-envoy             cilium-envoy             context deadline exceeded
+                       cilium-operator          cilium-operator          context deadline exceeded
+Warnings:              clustermesh-apiserver    clustermesh-apiserver    clustermesh is not deployed
+                       hubble-relay             hubble-relay             hubble relay is not deployed
+                       hubble-ui                hubble-ui                hubble ui is not deployed
+[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [31m1 errors[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [31m1 errors[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [33m1 warnings[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [33m1 warnings[0m
+
+Cluster Pods:          0/0 managed by Cilium
+Helm chart version:    1.20.2
+Errors:                cilium                   cilium                   context deadline exceeded
+                       cilium-envoy             cilium-envoy             context deadline exceeded
+                       cilium-operator          cilium-operator          context deadline exceeded
+Warnings:              clustermesh-apiserver    clustermesh-apiserver    clustermesh is not deployed
+                       hubble-relay             hubble-relay             hubble relay is not deployed
+                       hubble-ui                hubble-ui                hubble ui is not deployed
+
+Error: Unable to determine status:  timeout while waiting for status to become successful: context deadline exceeded
+[2026-10-01T12:43:21Z] [verify] ERROR: 단계=verify, line=5, exit=1
+[2026-10-01T12:43:21Z] [verify] FAILED: 단계=verify, exit=1. 원인을 해결한 뒤 install.sh를 다시 실행하세요.
+[2026-10-01T12:43:21Z] [verify] 실패 원인 진단: Pod 상태·Service·최근 이벤트
+NAMESPACE     NAME                             READY   STATUS             RESTARTS   AGE     IP             NODE                   NOMINATED NODE   READINESS GATES
+jasmin-poc    jasmin-sample-5f5fcbcd59-66f4q   0/1     Terminating        0          45s     10.42.0.196    lima-jasmin-poc-test   <none>           <none>
+jasmin-poc    jasmin-sample-7bc49bb68d-76lwx   1/1     Running            0          2m3s    10.42.0.18     lima-jasmin-poc-test   <none>           <none>
+kube-system   cilium-cqz4z                     0/1     InvalidImageName   0          21s     192.168.5.15   lima-jasmin-poc-test   <none>           <none>
+kube-system   cilium-envoy-gh728               1/1     Running            0          9m47s   192.168.5.15   lima-jasmin-poc-test   <none>           <none>
+kube-system   cilium-operator-7dcb85f7-gcbq7   1/1     Running            0          9m47s   192.168.5.15   lima-jasmin-poc-test   <none>           <none>
+kube-system   coredns-fddcf74bb-fq9ff          1/1     Running            0          9m49s   10.42.0.161    lima-jasmin-poc-test   <none>           <none>
+NAME                    TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE    SELECTOR
+service/jasmin-sample   NodePort   10.43.85.147   <none>        80:30080/TCP   7m3s   app=jasmin-sample
+
+NAME                                                 ADDRESSTYPE   PORTS   ENDPOINTS                AGE
+endpointslice.discovery.k8s.io/jasmin-sample-fwxps   IPv4          80      10.42.0.18,10.42.0.196   7m3s
+Name:                      jasmin-sample-5f5fcbcd59-66f4q
+Namespace:                 jasmin-poc
+Priority:                  0
+Service Account:           default
+Node:                      lima-jasmin-poc-test/192.168.5.15
+Start Time:                Thu, 01 Oct 2026 21:42:36 +0900
+Labels:                    app=jasmin-sample
+                           pod-template-hash=5f5fcbcd59
+Annotations:               kubectl.kubernetes.io/restartedAt: 2026-10-01T21:40:34+09:00
+Status:                    Terminating (lasts 11s)
+Termination Grace Period:  15s
+IP:                        10.42.0.196
+IPs:
+  IP:           10.42.0.196
+Controlled By:  ReplicaSet/jasmin-sample-5f5fcbcd59
+Containers:
+  nginx:
+    Container ID:   containerd://418b0a6f2bba8681787febf8bd0d89ed147dc90504f34e4a52aea1b45a84fb98
+    Image:          nginx:1.28.0-alpine
+    Image ID:       docker.io/library/nginx@sha256:30f1c0d78e0ad60901648be663a710bdadf19e4c10ac6782c235200619158284
+    Port:           80/TCP (http)
+    Host Port:      0/TCP (http)
+    State:          Running
+      Started:      Thu, 01 Oct 2026 21:42:36 +0900
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:        50m
+      memory:     32Mi
+    Liveness:     http-get http://:http/ delay=10s timeout=1s period=10s #success=1 #failure=3
+    Readiness:    http-get http://:http/missing-healthz delay=2s timeout=1s period=3s #success=1 #failure=3
+    Environment:  <none>
+    Mounts:
+      /usr/share/nginx/html from html (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-bbx42 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  html:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      jasmin-sample-html
+    Optional:  false
+  kube-api-access-bbx42:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                From               Message
+  ----     ------     ----               ----               -------
+  Normal   Scheduled  46s                default-scheduler  Successfully assigned jasmin-poc/jasmin-sample-5f5fcbcd59-66f4q to lima-jasmin-poc-test
+  Normal   Pulled     47s                kubelet            Container image "nginx:1.28.0-alpine" already present on machine
+  Normal   Created    47s                kubelet            Created container: nginx
+  Normal   Started    47s                kubelet            Started container nginx
+  Normal   Killing    26s                kubelet            Stopping container nginx
+  Warning  Unhealthy  23s (x9 over 45s)  kubelet            Readiness probe failed: HTTP probe failed with statuscode: 404
+  Warning  Unhealthy  2s (x7 over 20s)   kubelet            Readiness probe failed: Get "http://10.42.0.196:80/missing-healthz": dial tcp 10.42.0.196:80: connect: connection refused
+
+
+Name:             jasmin-sample-7bc49bb68d-76lwx
+Namespace:        jasmin-poc
+Priority:         0
+Service Account:  default
+Node:             lima-jasmin-poc-test/192.168.5.15
+Start Time:       Thu, 01 Oct 2026 21:41:18 +0900
+Labels:           app=jasmin-sample
+                  pod-template-hash=7bc49bb68d
+Annotations:      kubectl.kubernetes.io/restartedAt: 2026-10-01T21:40:34+09:00
+Status:           Running
+IP:               10.42.0.18
+IPs:
+  IP:           10.42.0.18
+Controlled By:  ReplicaSet/jasmin-sample-7bc49bb68d
+Containers:
+  nginx:
+    Container ID:   containerd://731902bef3f8957dbc9d1ea543db219b9ed259e7e0a759a865103a13ba58c1b3
+    Image:          nginx:1.28.0-alpine
+    Image ID:       docker.io/library/nginx@sha256:30f1c0d78e0ad60901648be663a710bdadf19e4c10ac6782c235200619158284
+    Port:           80/TCP (http)
+    Host Port:      0/TCP (http)
+    State:          Running
+      Started:      Thu, 01 Oct 2026 21:41:18 +0900
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:        50m
+      memory:     32Mi
+    Liveness:     http-get http://:http/ delay=10s timeout=1s period=10s #success=1 #failure=3
+    Readiness:    http-get http://:http/ delay=2s timeout=1s period=3s #success=1 #failure=3
+    Environment:  <none>
+    Mounts:
+      /usr/share/nginx/html from html (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-v2sl5 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  html:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      jasmin-sample-html
+    Optional:  false
+  kube-api-access-v2sl5:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  2m4s  default-scheduler  Successfully assigned jasmin-poc/jasmin-sample-7bc49bb68d-76lwx to lima-jasmin-poc-test
+  Normal  Pulled     2m5s  kubelet            Container image "nginx:1.28.0-alpine" already present on machine
+  Normal  Created    2m5s  kubelet            Created container: nginx
+  Normal  Started    2m5s  kubelet            Started container nginx
+kube-system   24s         Normal    Killing                          pod/cilium-h9xjg                      Stopping container cilium-agent
+kube-system   24s         Normal    SuccessfulDelete                 daemonset/cilium                      Deleted pod: cilium-h9xjg
+kube-system   23s         Normal    Created                          pod/cilium-cqz4z                      Created container: config
+kube-system   23s         Normal    Pulled                           pod/cilium-cqz4z                      Container image "quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01" already present on machine
+kube-system   23s         Normal    Started                          pod/cilium-cqz4z                      Started container config
+kube-system   23s         Normal    SuccessfulCreate                 daemonset/cilium                      Created pod: cilium-cqz4z
+jasmin-poc    23s         Warning   Unhealthy                        pod/jasmin-sample-5f5fcbcd59-66f4q    Readiness probe failed: HTTP probe failed with statuscode: 404
+kube-system   22s         Normal    Started                          pod/cilium-cqz4z                      Started container mount-cgroup
+kube-system   22s         Normal    Pulled                           pod/cilium-cqz4z                      Container image "quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01" already present on machine
+kube-system   22s         Normal    Created                          pod/cilium-cqz4z                      Created container: mount-cgroup
+kube-system   21s         Normal    Created                          pod/cilium-cqz4z                      Created container: apply-sysctl-overwrites
+kube-system   21s         Normal    Started                          pod/cilium-cqz4z                      Started container apply-sysctl-overwrites
+kube-system   21s         Normal    Pulled                           pod/cilium-cqz4z                      Container image "quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01" already present on machine
+kube-system   20s         Normal    Started                          pod/cilium-cqz4z                      Started container mount-bpf-fs
+kube-system   20s         Normal    Created                          pod/cilium-cqz4z                      Created container: mount-bpf-fs
+kube-system   20s         Normal    Pulled                           pod/cilium-cqz4z                      Container image "quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01" already present on machine
+kube-system   19s         Normal    Created                          pod/cilium-cqz4z                      Created container: clean-cilium-state
+kube-system   19s         Normal    Started                          pod/cilium-cqz4z                      Started container clean-cilium-state
+kube-system   19s         Normal    Pulled                           pod/cilium-cqz4z                      Container image "quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01" already present on machine
+kube-system   18s         Normal    Pulled                           pod/cilium-cqz4z                      Container image "quay.io/cilium/cilium:v1.20.2@sha256:2939231d0d3e3ebddcd80fffa168b7ddcc78fdf0dc864d1c8c126ff523c54f01" already present on machine
+kube-system   18s         Normal    Created                          pod/cilium-cqz4z                      Created container: install-cni-binaries
+kube-system   18s         Normal    Started                          pod/cilium-cqz4z                      Started container install-cni-binaries
+kube-system   4s          Warning   InspectFailed                    pod/cilium-cqz4z                      Failed to apply default image tag "invalid@@@": couldn't parse image name "invalid@@@": invalid reference format
+kube-system   4s          Warning   Failed                           pod/cilium-cqz4z                      Error: InvalidImageName
+jasmin-poc    2s          Warning   Unhealthy                        pod/jasmin-sample-5f5fcbcd59-66f4q    Readiness probe failed: Get "http://10.42.0.196:80/missing-healthz": dial tcp 10.42.0.196:80: connect: connection refused
+[2026-10-01T12:43:23Z] [verify] 진단: journalctl -u k3s -n 100; k3s kubectl get pods -A -o wide; k3s kubectl get events -A --sort-by=.lastTimestamp

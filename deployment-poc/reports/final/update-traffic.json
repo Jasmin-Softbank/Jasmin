@@ -1,0 +1,1 @@
+{"url": "http://192.168.5.15:30080/", "requests": 1920, "concurrency": 4, "failures": 0, "error_rate": 0.0, "elapsed_seconds": 25.025, "max_latency_seconds": 0.01, "error_examples": []}

@@ -1,0 +1,259 @@
+[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[A[2K[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+[33m    /¯¯\
+[36m /¯¯[33m\__/[32m¯¯\[0m    Cilium:             [31m1 errors[0m
+[36m \__[31m/¯¯\[32m__/[0m    Operator:           [36mdisabled[0m
+[32m /¯¯[31m\__/[35m¯¯\[0m    Envoy DaemonSet:    [36mdisabled (using embedded mode)[0m
+[32m \__[34m/¯¯\[35m__/[0m    Hubble Relay:       [36mdisabled[0m
+[34m[34m[34m    \__/[0m       ClusterMesh:        [36mdisabled[0m
+
+Containers:            cilium                   
+                       cilium-operator          
+                       clustermesh-apiserver    
+                       hubble-relay             
+Cluster Pods:          2/2 managed by Cilium
+Helm chart version:    
+Errors:                cilium    cilium    daemonsets.apps "cilium" not found
+
+Error: Unable to determine status:  timeout while waiting for status to become successful: context deadline exceeded
+[2026-10-01T12:45:32Z] [verify] ERROR: 단계=verify, line=5, exit=1
+[2026-10-01T12:45:32Z] [verify] FAILED: 단계=verify, exit=1. 원인을 해결한 뒤 install.sh를 다시 실행하세요.
+[2026-10-01T12:45:32Z] [verify] 실패 원인 진단: Pod 상태·Service·최근 이벤트
+NAMESPACE     NAME                             READY   STATUS    RESTARTS   AGE     IP            NODE                   NOMINATED NODE   READINESS GATES
+jasmin-poc    jasmin-sample-7bc49bb68d-76lwx   1/1     Running   0          4m14s   10.42.0.18    lima-jasmin-poc-test   <none>           <none>
+kube-system   coredns-fddcf74bb-fq9ff          1/1     Running   0          12m     10.42.0.161   lima-jasmin-poc-test   <none>           <none>
+NAME                    TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE     SELECTOR
+service/jasmin-sample   NodePort   10.43.85.147   <none>        80:30080/TCP   9m13s   app=jasmin-sample
+
+NAME                                                 ADDRESSTYPE   PORTS   ENDPOINTS    AGE
+endpointslice.discovery.k8s.io/jasmin-sample-fwxps   IPv4          80      10.42.0.18   9m13s
+Name:             jasmin-sample-7bc49bb68d-76lwx
+Namespace:        jasmin-poc
+Priority:         0
+Service Account:  default
+Node:             lima-jasmin-poc-test/192.168.5.15
+Start Time:       Thu, 01 Oct 2026 21:41:18 +0900
+Labels:           app=jasmin-sample
+                  pod-template-hash=7bc49bb68d
+Annotations:      kubectl.kubernetes.io/restartedAt: 2026-10-01T21:40:34+09:00
+Status:           Running
+IP:               10.42.0.18
+IPs:
+  IP:           10.42.0.18
+Controlled By:  ReplicaSet/jasmin-sample-7bc49bb68d
+Containers:
+  nginx:
+    Container ID:   containerd://731902bef3f8957dbc9d1ea543db219b9ed259e7e0a759a865103a13ba58c1b3
+    Image:          nginx:1.28.0-alpine
+    Image ID:       docker.io/library/nginx@sha256:30f1c0d78e0ad60901648be663a710bdadf19e4c10ac6782c235200619158284
+    Port:           80/TCP (http)
+    Host Port:      0/TCP (http)
+    State:          Running
+      Started:      Thu, 01 Oct 2026 21:41:18 +0900
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:     500m
+      memory:  128Mi
+    Requests:
+      cpu:        50m
+      memory:     32Mi
+    Liveness:     http-get http://:http/ delay=10s timeout=1s period=10s #success=1 #failure=3
+    Readiness:    http-get http://:http/ delay=2s timeout=1s period=3s #success=1 #failure=3
+    Environment:  <none>
+    Mounts:
+      /usr/share/nginx/html from html (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-v2sl5 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  html:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      jasmin-sample-html
+    Optional:  false
+  kube-api-access-v2sl5:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age    From               Message
+  ----    ------     ----   ----               -------
+  Normal  Scheduled  4m14s  default-scheduler  Successfully assigned jasmin-poc/jasmin-sample-7bc49bb68d-76lwx to lima-jasmin-poc-test
+  Normal  Pulled     4m14s  kubelet            Container image "nginx:1.28.0-alpine" already present on machine
+  Normal  Created    4m14s  kubelet            Created container: nginx
+  Normal  Started    4m14s  kubelet            Started container nginx
+jasmin-poc    115s        Normal    Started                          pod/poc-allowed                       Started container poc-allowed
+jasmin-poc    115s        Normal    Created                          pod/poc-allowed                       Created container: poc-allowed
+jasmin-poc    104s        Normal    Killing                          pod/poc-denied                        Stopping container poc-denied
+jasmin-poc    104s        Normal    Killing                          pod/poc-allowed                       Stopping container poc-allowed
+default       66s         Normal    Starting                         node/lima-jasmin-poc-test             Starting kubelet.
+default       66s         Normal    CertificateExpirationOK          node/lima-jasmin-poc-test             Node and Certificate Authority certificates managed by k3s are OK
+default       65s         Normal    NodeAllocatableEnforced          node/lima-jasmin-poc-test             Updated Node Allocatable limit across pods
+default       65s         Normal    NodeHasNoDiskPressure            node/lima-jasmin-poc-test             Node lima-jasmin-poc-test status is now: NodeHasNoDiskPressure
+kube-system   65s         Normal    ApplyingManifest                 addon/ccm                             Applying manifest at "/var/lib/rancher/k3s/server/manifests/ccm.yaml"
+default       65s         Normal    NodeHasSufficientMemory          node/lima-jasmin-poc-test             Node lima-jasmin-poc-test status is now: NodeHasSufficientMemory
+kube-system   65s         Normal    ApplyingManifest                 addon/coredns                         Applying manifest at "/var/lib/rancher/k3s/server/manifests/coredns.yaml"
+default       65s         Normal    NodeHasSufficientPID             node/lima-jasmin-poc-test             Node lima-jasmin-poc-test status is now: NodeHasSufficientPID
+kube-system   65s         Normal    AppliedManifest                  addon/ccm                             Applied manifest at "/var/lib/rancher/k3s/server/manifests/ccm.yaml"
+default       64s         Normal    RegisteredNode                   node/lima-jasmin-poc-test             Node lima-jasmin-poc-test event: Registered Node lima-jasmin-poc-test in Controller
+kube-system   64s         Normal    AppliedManifest                  addon/coredns                         Applied manifest at "/var/lib/rancher/k3s/server/manifests/coredns.yaml"
+kube-system   63s         Normal    DeletingManifest                 addon/local-storage                   Deleting manifest at "/var/lib/rancher/k3s/server/manifests/local-storage.yaml"
+default       63s         Normal    NodePasswordValidationComplete   node/lima-jasmin-poc-test             Deferred node password secret validation complete
+kube-system   63s         Normal    ApplyingManifest                 addon/rolebindings                    Applying manifest at "/var/lib/rancher/k3s/server/manifests/rolebindings.yaml"
+kube-system   62s         Normal    AppliedManifest                  addon/rolebindings                    Applied manifest at "/var/lib/rancher/k3s/server/manifests/rolebindings.yaml"
+kube-system   62s         Normal    ApplyingManifest                 addon/runtimes                        Applying manifest at "/var/lib/rancher/k3s/server/manifests/runtimes.yaml"
+kube-system   62s         Normal    AppliedManifest                  addon/runtimes                        Applied manifest at "/var/lib/rancher/k3s/server/manifests/runtimes.yaml"
+kube-system   61s         Normal    DeletingManifest                 addon/traefik                         Deleting manifest at "/var/lib/rancher/k3s/server/manifests/traefik.yaml"
+kube-system   30s         Normal    Killing                          pod/cilium-djqfl                      Stopping container cilium-agent
+kube-system   30s         Normal    Killing                          pod/cilium-envoy-gh728                Stopping container cilium-envoy
+kube-system   30s         Normal    Killing                          pod/cilium-operator-7dcb85f7-gcbq7    Stopping container cilium-operator
+[2026-10-01T12:45:33Z] [verify] 진단: journalctl -u k3s -n 100; k3s kubectl get pods -A -o wide; k3s kubectl get events -A --sort-by=.lastTimestamp
