@@ -72,6 +72,24 @@ class CodeBuildTests(unittest.TestCase):
             codebuild.reconcile(self.config, self.job)
         client.assert_not_called(); self.assertEqual(caught.exception.outcome, 'UNKNOWN')
 
+    def test_existing_upload_requires_exact_bytes_before_new_dispatch(self):
+        def aws(config, *args):
+            if args[:2] == ('s3api', 'put-object'): raise subprocess.CalledProcessError(1, 'aws')
+            if args[:2] == ('s3api', 'get-object'):
+                shutil.copyfile(self.job / 'bundle.zip', args[-1]); return {}
+            return {'build': {'id': self.build_id}}
+        with patch.object(codebuild, 'preflight'), patch.object(codebuild, 'aws', side_effect=aws):
+            result = codebuild.start(self.config, self.source, self.job, self.job_id, self.approved)
+        self.assertEqual(result['outcome'], 'RUNNING')
+
+    def test_existing_upload_mismatch_never_dispatches(self):
+        def aws(config, *args):
+            if args[:2] == ('s3api', 'put-object'): raise subprocess.CalledProcessError(1, 'aws')
+            if args[:2] == ('s3api', 'get-object'): Path(args[-1]).write_bytes(b'tampered'); return {}
+            self.fail('changed upload must never dispatch')
+        with patch.object(codebuild, 'preflight'), patch.object(codebuild, 'aws', side_effect=aws), self.assertRaises(codebuild.OperationError):
+            codebuild.start(self.config, self.source, self.job, self.job_id, self.approved)
+
     def test_provider_success_without_bound_receipt_cannot_be_pass(self):
         state = {'config': self.config, 'phase': 'started', 'build_id': self.build_id, 'job_id': self.job_id,
                  'manifest_sha256': self.approved, 'source_sha256': 'c' * 64}
@@ -128,6 +146,42 @@ class CodeBuildTests(unittest.TestCase):
         self.assertNotIn('synthetic-password', repr(login.call_args.args))
         self.assertEqual(login.call_args.kwargs['input'], b'synthetic-password\n')
         self.assertNotIn('synthetic-password', json.dumps(result))
+
+    def test_failure_diagnostics_use_private_channel_and_keep_unknown(self):
+        archive = self.root / 'failure-input.zip'
+        with zipfile.ZipFile(archive, 'w') as output:
+            for path in self.source.iterdir(): output.write(path, path.name)
+        env = {'RAILSHOT_' + key: value for key,value in {
+            'SOURCE_REF': self.config['platform_ref'], 'ARTIFACT_BUCKET': self.config['artifact_bucket'],
+            'REGISTRY_PREFIX': self.config['registry_prefix'], 'JOB_ID': self.job_id,
+            'MANIFEST_SHA256': self.approved, 'ARCHIVE_SHA256': codebuild.bundle.file_hash(archive)}.items()}
+        env.update(CODEBUILD_RESOLVED_SOURCE_VERSION=self.config['platform_ref'], CODEBUILD_BUILD_ID=self.build_id)
+        captured = []
+        def aws(*args):
+            if args[:2] == ('s3api', 'get-object'): shutil.copyfile(archive, args[-1])
+            if args[:2] == ('s3api', 'put-object'):
+                self.assertEqual(args[args.index('--key')+1], 'receipts/' + self.job_id + '.failure.json')
+                captured.append(json.loads(Path(args[args.index('--body')+1]).read_bytes()))
+            return subprocess.CompletedProcess([], 0, 'synthetic-password' if args[0]=='ecr' else '{}', '')
+        def failure(*args, **kwargs):
+            journal = kwargs['journal_dir']; journal.mkdir(mode=0o700)
+            publisher.durable_write(journal / 'native-failure-test.json', b'{"command":"skopeo.copy","exit_code":17}')
+            raise codebuild.OperationError('PUBLISH_OUTCOME_UNKNOWN', component='publish', phase='image', outcome='UNKNOWN')
+        with patch.object(publisher, 'aws', side_effect=aws), patch.object(publisher.bundle, 'publish', side_effect=failure), \
+                patch.object(publisher, 'run_bounded'), self.assertRaises(codebuild.OperationError) as error:
+            publisher.publish(env)
+        self.assertEqual(error.exception.outcome, 'UNKNOWN')
+        self.assertEqual(captured[0]['diagnostics'][0]['exit_code'], 17)
+        self.assertNotIn('synthetic-password', json.dumps(captured))
+        def unavailable_receipt(*args):
+            if args[:2] == ('s3api', 'put-object'):
+                raise subprocess.CalledProcessError(1, 'aws')
+            return aws(*args)
+        with patch.object(publisher, 'aws', side_effect=unavailable_receipt), patch.object(publisher.bundle, 'publish', side_effect=failure), \
+                patch.object(publisher, 'run_bounded'), self.assertRaises(codebuild.OperationError) as error:
+            publisher.publish(env)
+        self.assertEqual(error.exception.code, 'OBSERVATION_WRITE_FAILED')
+        self.assertEqual(error.exception.outcome, 'UNKNOWN')
 
 
 if __name__ == '__main__': unittest.main()

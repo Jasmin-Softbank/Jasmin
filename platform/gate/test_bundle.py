@@ -79,6 +79,22 @@ class BundleTest(unittest.TestCase):
         self.assertTrue(result['web'].startswith('registry.example/demo-web@sha256:'))
         self.assertIn('docker://' + result['web'], [call.args[-1] for call in copy.call_args_list])
 
+    def test_skopeo_failure_has_private_bounded_redacted_native_diagnostic(self):
+        directory = self.root / 'diagnostics'; directory.mkdir(mode=0o700)
+        raw = b'copy failed: unsupported image format\nAuthorization: Bearer synthetic-secret\nhttps://storage.example/blob?X-Amz-Security-Token=synthetic-token\n'
+        result = subprocess.CompletedProcess([], 17, b'never persist stdout', raw)
+        with patch('bundle.run_bounded', return_value=result), self.assertRaisesRegex(ValueError, '^Skopeo operation failed$'):
+            bundle.skopeo('copy', 'local', 'remote', diagnostics_dir=directory)
+        paths = list(directory.glob('native-failure-*.json')); self.assertEqual(len(paths), 1)
+        record = json.loads(paths[0].read_bytes())
+        self.assertEqual(record['exit_code'], 17)
+        self.assertEqual(record['stderr_sha256'], hashlib.sha256(raw).hexdigest())
+        self.assertIn('unsupported image format', record['stderr_redacted'])
+        self.assertNotIn('synthetic-secret', paths[0].read_text())
+        self.assertNotIn('synthetic-token', paths[0].read_text())
+        self.assertNotIn('never persist stdout', paths[0].read_text())
+        self.assertEqual(paths[0].stat().st_mode & 0o777, 0o600)
+
     def test_skopeo_config_mismatch_fails_before_copy(self):
         self.export()
         raw = json.dumps({'schemaVersion': 2, 'config': {'digest': 'sha256:' + 'c' * 64},

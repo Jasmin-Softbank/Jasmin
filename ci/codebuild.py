@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import subprocess
 import uuid
 import zipfile
 
@@ -92,8 +93,16 @@ def start(config, source, job, job_id, approved):
     state = {'schema_version': 1, 'job_id': job_id, 'config': config, 'manifest_sha256': manifest_sha,
              'archive_sha256': archive_sha, 'source_sha256': manifest['source_sha256'], 'phase': 'upload_intent'}
     save(job / 'state.json', state)
-    aws(config, 's3api', 'put-object', '--bucket', config['artifact_bucket'], '--key', 'bundles/' + archive_sha + '.zip',
-        '--body', str(archive), '--if-none-match', '*')
+    key = 'bundles/' + archive_sha + '.zip'
+    try:
+        aws(config, 's3api', 'put-object', '--bucket', config['artifact_bucket'], '--key', key,
+            '--body', str(archive), '--if-none-match', '*')
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        # Reconcile only this immutable upload; never overwrite it or re-submit a build.
+        existing = job / 'existing-bundle.zip'
+        aws(config, 's3api', 'get-object', '--bucket', config['artifact_bucket'], '--key', key, str(existing))
+        existing.chmod(0o600)
+        if bundle.file_hash(existing) != archive_sha: raise fail('upload.binding', unknown=True)
     payload = {'projectName': config['project_name'], 'sourceVersion': config['platform_ref'],
                'idempotencyToken': job_id, 'environmentVariablesOverride': [
                    {'name': 'RAILSHOT_' + key, 'value': value, 'type': 'PLAINTEXT'} for key, value in

@@ -78,8 +78,25 @@ def publish(env):
         auth = root / 'registry-auth.json'; durable_write(auth, b'{"auths":{}}')
         run_bounded(['skopeo', 'login', '--authfile', str(auth), '--username', 'AWS', '--password-stdin', registry],
                     input=(password + '\n').encode(), timeout=30, check=True)
-        images = bundle.publish(source, request['REGISTRY_PREFIX'], 'run-' + request['JOB_ID'],
-                                journal_dir=root / 'publish-journal', backend='skopeo', authfile=auth)
+        journal = root / 'publish-journal'
+        try:
+            images = bundle.publish(source, request['REGISTRY_PREFIX'], 'run-' + request['JOB_ID'],
+                                    journal_dir=journal, backend='skopeo', authfile=auth)
+        except Exception:
+            # Keep bounded native diagnostics in the private artifact channel, never stdout.
+            failure = {'schema_version': 1, 'job_id': request['JOB_ID'], 'build_id': env['CODEBUILD_BUILD_ID'],
+                       'platform_ref': request['SOURCE_REF'], 'manifest_sha256': request['MANIFEST_SHA256'],
+                       'diagnostics': [json.loads(p.read_bytes()) for p in sorted(journal.glob('native-failure-*.json'))[:4]],
+                       'journal': json.loads((journal / 'publish.json').read_bytes()) if (journal / 'publish.json').is_file() else None}
+            private = root / 'failure.json'; durable_write(private, json.dumps(failure, sort_keys=True).encode())
+            try:
+                aws('s3api', 'put-object', '--bucket', request['ARTIFACT_BUCKET'],
+                    '--key', 'receipts/' + request['JOB_ID'] + '.failure.json', '--body', str(private), '--if-none-match', '*')
+            except Exception as exc:
+                raise OperationError('OBSERVATION_WRITE_FAILED', component='codebuild.release',
+                                     phase='publish.diagnostic', outcome='UNKNOWN',
+                                     retry_policy='after_reconcile', side_effect='possible', cause=exc) from exc
+            raise
         receipt = {'schema_version': 1, 'outcome': 'PASS', 'operation': 'publish_only',
                    'job_id': request['JOB_ID'], 'build_id': env['CODEBUILD_BUILD_ID'],
                    'platform_ref': request['SOURCE_REF'], 'manifest_sha256': request['MANIFEST_SHA256'],

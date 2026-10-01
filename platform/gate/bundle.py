@@ -16,6 +16,7 @@ import subprocess
 import sys
 import fcntl
 import tarfile
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from execution import GATE_ORDER
@@ -156,7 +157,7 @@ def verify(bundle):
     return manifest
 
 
-def skopeo(*args, authfile=None, timeout=900):
+def skopeo(*args, authfile=None, timeout=900, diagnostics_dir=None):
     """Daemonless trusted publisher. Credential bytes never enter argv or output."""
     auth = []
     if authfile is not None:
@@ -166,12 +167,26 @@ def skopeo(*args, authfile=None, timeout=900):
                 "publisher auth file must be a private owned regular file")
         auth = ["--authfile", str(path.resolve())]
     result = run_bounded(["skopeo", args[0], *auth, *args[1:]], timeout=timeout, raw=True)
+    if result.returncode and diagnostics_dir is not None:
+        # Private diagnostic only. Never persist argv, auth input, stdout or environment.
+        raw = result.stderr if isinstance(result.stderr, bytes) else result.stderr.encode()
+        detail = raw[-8192:].decode('utf-8', errors='replace')
+        detail = re.sub(r'https?://[^\s"\']+', lambda m: m[0].split('?', 1)[0].split('#', 1)[0]
+                        if '@' not in m[0] else '[REDACTED_URL]', detail)
+        detail = re.sub(r'(?i)(authorization|password|token|secret|credential)\s*[:=]\s*[^\r\n]+',
+                        r'\1=[REDACTED]', detail)
+        detail = re.sub(r'\b(?:AKIA|ASIA)[A-Z0-9]{16}\b', '[REDACTED_AWS_KEY]', detail)
+        record = {'schema_version': 1, 'command': 'skopeo.' + args[0], 'exit_code': result.returncode,
+                  'stderr_sha256': hashlib.sha256(raw).hexdigest(), 'stderr_bytes': len(raw),
+                  'stderr_redacted': detail, 'truncated': len(raw) > 8192}
+        durable_write(Path(diagnostics_dir) / ('native-failure-' + str(uuid.uuid4()) + '.json'),
+                      json.dumps(record, sort_keys=True).encode())
     require(result.returncode == 0, "Skopeo operation failed")
     return result.stdout
 
 
-def skopeo_manifest(ref, expected_id, *, authfile=None):
-    raw = skopeo("inspect", "--raw", ref, authfile=authfile, timeout=120)
+def skopeo_manifest(ref, expected_id, *, authfile=None, diagnostics_dir=None):
+    raw = skopeo("inspect", "--raw", ref, authfile=authfile, timeout=120, diagnostics_dir=diagnostics_dir)
     document = json.loads(raw)
     require(document.get("schemaVersion") == 2 and document.get("config", {}).get("digest") == expected_id,
             "registry/archive configuration differs from tested image ID")
@@ -224,6 +239,7 @@ def publish(bundle, registry_prefix, tag, *, journal_dir=None, reconcile=False, 
     require(backend in {"docker", "skopeo"}, "unsupported trusted publisher")
     require(backend == "skopeo" or authfile is None, "explicit authfile only supported by skopeo")
     manifest = verify(bundle)
+    directory = private_directory(journal_dir or Path(bundle).with_name(Path(bundle).name + "-publish"))
     archive = str((Path(bundle) / "images.tar").resolve())
     if backend == "docker":
         docker("image", "load", "--input", archive)
@@ -234,9 +250,8 @@ def publish(bundle, registry_prefix, tag, *, journal_dir=None, reconcile=False, 
         require(len(manifest['images']) == 1, 'skopeo publisher supports one image per bundle')
         for item in manifest["images"].values():
             archive_ref, config_id, native_manifest_id = skopeo_archive(archive, item['id'])
-            inspected = skopeo_manifest(archive_ref, config_id)
+            inspected = skopeo_manifest(archive_ref, config_id, diagnostics_dir=directory)
             require(native_manifest_id is None or inspected == native_manifest_id, 'OCI archive manifest differs')
-    directory = private_directory(journal_dir or Path(bundle).with_name(Path(bundle).name + "-publish"))
     lock = os.open(directory / ".lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -263,12 +278,12 @@ def publish(bundle, registry_prefix, tag, *, journal_dir=None, reconcile=False, 
                 if backend == "skopeo":
                     if not uncertain:
                         skopeo("copy", *(["--preserve-digests"] if native_manifest_id else []), archive_ref,
-                               "docker://" + target, authfile=authfile)
+                               "docker://" + target, authfile=authfile, diagnostics_dir=directory)
                     # Inspect the remote manifest, then inspect its immutable reference.
-                    remote_digest = skopeo_manifest("docker://" + target, config_id, authfile=authfile)
+                    remote_digest = skopeo_manifest("docker://" + target, config_id, authfile=authfile, diagnostics_dir=directory)
                     require(native_manifest_id is None or remote_digest == native_manifest_id, 'published OCI identity changed')
                     reference = repository + "@" + remote_digest
-                    require(skopeo_manifest("docker://" + reference, config_id, authfile=authfile) == remote_digest,
+                    require(skopeo_manifest("docker://" + reference, config_id, authfile=authfile, diagnostics_dir=directory) == remote_digest,
                             "immutable registry readback differs")
                     state["images"][svc].update(outcome="PASS", digest=reference)
                     durable_write(journal, (json.dumps(state, indent=2) + "\n").encode())
@@ -288,6 +303,9 @@ def publish(bundle, registry_prefix, tag, *, journal_dir=None, reconcile=False, 
                 state["images"][svc].update(outcome="PASS", digest=digests.pop())
                 durable_write(journal, (json.dumps(state, indent=2) + "\n").encode())
             except Exception as exc:
+                state['images'][svc]['diagnostics'] = [
+                    {'path': p.name, 'sha256': file_hash(p)} for p in sorted(directory.glob('native-failure-*.json'))]
+                durable_write(journal, (json.dumps(state, indent=2) + "\n").encode())
                 raise OperationError("PUBLISH_OUTCOME_UNKNOWN", component="publish", phase="image",
                                      outcome="UNKNOWN", retry_policy="after_reconcile", side_effect="possible", cause=exc) from exc
         return {svc: entry["digest"] for svc, entry in state["images"].items()}
