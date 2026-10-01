@@ -2,6 +2,18 @@
 
 이 기록은 실제 자원 관측과 로컬 코드 검사를 구분한다. 관리자용 PoC이며 사용자별 VM allocator, 제품 Allow API, 원격 데스크톱 스트리밍, 전체 CI/CD 서비스의 완료 기록이 아니다.
 
+## 팀 프로젝트 준비 — 2026-10-01 23:20 KST
+
+- AWS: 기존 관리자 IAM 인증으로 서울 리전의 `RAILSHOT` Resource Group과 `/railshot/railshot-developers` IAM 그룹을 생성하고 API로 재조회했다. Resource Group은 `Project=railshot` 태그로 분류하며 독립 계정·권한·청구 경계가 아니다. 팀 권한은 별도 IAM 정책에서 제한해야 한다.
+- 5명 명단 중 관리자는 기존 계정을 유지하고, 나머지 4명의 `/railshot/` IAM 사용자·콘솔 login profile을 생성해 팀 그룹에 넣었다. 최초 비밀번호 변경 필수, access key 0개, 사용자 직접 정책 0개를 재조회했다. 초기 비밀번호와 개인별 안내는 관리자 로컬 비공개 파일에만 보존했다. 자동 메일·메신저 발송은 하지 않았다.
+- AWS inline `railshot-team-access`는 본인 비밀번호·MFA 셀프서비스와 MFA 인증 후 지정된 서울 EC2의 시작·중지·재시작을 허용한다. EC2는 `Project=railshot`와 `AccessScope=railshot-team-dev`가 모두 필요하며 기존 control/CI/app VM에 팀 태그를 추가하지 않았다. 새 VM 생성·SSM·CI 실행·IAM/결제 관리는 포함하지 않는다. 따라서 AWS 전체 개발·배포 권한 구성이 끝난 상태는 아니다. MFA 등록용 `ListVirtualMFADevices`에는 계정 전체 장치 메타데이터 조회 예외가 있다.
+- AWS Access Analyzer 정책 검증 findings 0개, 적용 정책 원문 readback 일치, IAM 시뮬레이터의 허용·거부 14개를 확인했다. 본인 비밀번호/MFA 허용, 다른 사용자·프로젝트·관리 VM 및 권한 상승 거부를 포함한다. 시뮬레이션은 팀원 실제 로그인·MFA 등록·자원 조작 E2E가 아니다.
+- GCP: 기존 RAILSHOT 전용 프로젝트를 재사용해 표시 이름을 `RAILSHOT`으로 갱신했다. 현재 로그인 계정의 프로젝트 Owner 권한과 프로젝트 ACTIVE를 확인했다. 개인용 CLI에 프로젝트·서울 리전/존을 지정한 `railshot` configuration을 만들었으며 기존 default는 유지했다.
+- GCP Owner를 보존하고 나머지 4명의 Google 계정에 프로젝트 IAM을 연결했다. `RAILSHOT Developer` custom role은 standalone VM/디스크 변경 22개 권한이며 Compute Viewer·OS Admin Login·Logs Viewer·Monitoring Viewer·Service Usage Consumer와 TCP22 조건의 IAP 역할을 함께 부여했다. 역할 정의 및 7개 바인딩을 API로 재조회해 비교했다. IAM/서비스 계정/결제/방화벽 관리 권한은 주지 않았다. VM 내부 sudo와 개별 VM metadata/tag 변경은 허용되므로 관리자 자격을 보관하는 control VM을 이 팀 프로젝트에 섞지 않는다.
+- GCP billing 연결은 `FAILED_PRECONDITION / QuotaFailure / Cloud billing quota exceeded`로 거부됐고 후속 조회에서도 `billingEnabled=false`다. 결제 연결 가능한 프로젝트 할당량 문제이며 IAM Owner 여부와 별개다. 기존 다른 프로젝트의 billing 연결 해제·자원 이전·추가 compute 생성은 수행하지 않았다.
+- 남은 인수 확인: 각 팀원의 실제 로그인과 AWS MFA 등록, 팀용 자원의 접근·거부 시험. GCP는 billing 연결 이후 관리자가 사설 네트워크·egress·필요한 IAP 경로를 준비해야 하며, 팀 VM에는 서비스 계정·공개 IP를 부여하지 않는 범위다. IAP IAM 역할만으로 SSH/네트워크가 구성되지는 않는다.
+- AWS root 로그인으로 전환하거나 root key를 생성하지 않았다. 현재 관리자 IAM 권한을 사용했다. GCP는 Google 계정과 프로젝트 IAM 권한으로 관리한다. 계정 식별자·이메일·private readback은 공개 Git에 넣지 않는다.
+
 ## 공통 실행 구조
 
 | 공통 코드 | 공급자별로 남긴 부분 | 현재 검증 |

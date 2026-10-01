@@ -12,7 +12,7 @@
 | `platform/gate/gate.py` L3 | 일회성 Docker PostgreSQL 17에 기존 migration 명령과 앱 기동 시험 | 기존 운영 데이터 호환성, 실제 운영 연결, DML/DDL 권한 분리 검증 |
 | [`platform/infra/database.py`](../infra/database.py) | 명시적 DB 증거를 입력받아 선택안과 차단 이유 출력 | 파일 내용의 진위 검증, DB 연결, 리소스 생성, migration 실행 또는 배포 승인 |
 
-현재 CNPG 렌더는 1개 인스턴스·1Gi 저장소이며 기본 StorageClass는 `local-path`다. 현재 AWS 구성에서 이는 앱 VM의 저장 공간을 쓰므로 전용 DB 볼륨, 다중 노드 HA, 자동 장애 복구를 의미하지 않는다. `Cluster.bootstrap.initdb`가 앱 DB와 owner를 만들며, 별도 `Database` 리소스를 생성하는 구현은 없다. PostgreSQL 17 이미지는 현재 태그 참조다.
+현재 CNPG 렌더는 1개 인스턴스·1Gi 저장소이며 기본 StorageClass는 `local-path`다. 최신 AWS/GCP/Azure bootstrap은 `/var/lib/rancher`의 별도 보존 디스크 mount를 요구하지만 DB 전용 볼륨은 아니며, `local-path`의 노드 결합도 남는다. 디스크 보존이 다중 노드 HA나 자동 장애 복구를 의미하지 않는다. `Cluster.bootstrap.initdb`가 앱 DB와 owner를 만들며, 별도 `Database` 리소스를 생성하는 구현은 없다. PostgreSQL 17 이미지는 현재 태그 참조다.
 
 렌더 순서는 Secret 생성 준비 → Cluster/역할 → 권한 설정 Job(wave 0) → migration Job(wave 1) → 앱(wave 2)이다. migration은 CI와 동일하게 `PORT`, 선언 env/Secret 참조, owner 연결인 `DATABASE_URL`·`MIGRATION_DATABASE_URL`을 받고, 앱은 제한된 rw `DATABASE_URL`만 받는다. 플랫폼이 관리하는 DB/PORT 필드는 env override할 수 없다. 기존 앱 도구가 다른 환경변수 이름을 요구하면 명시적 어댑터가 필요하다. DB 리소스의 현재 보호 설정은 `Prune=confirm,Delete=false`다. 이 설정은 백업을 대신하지 않는다.
 
@@ -117,3 +117,38 @@ python3 -m unittest discover -s platform/infra -p 'test_database.py' -v
 - 관리형 모드는 엔진·runtime/migration Secret 참조·TLS·승인된 네트워크 목적지/포트를 검증한다. 현재 HTTPS 중심 egress만으로 PostgreSQL 5432 연결을 지원한다고 주장하지 않는다. DB 생성·비용 승인과 기존 연결 사용은 구분한다.
 - 도구별 환경변수 어댑터와 migration 동시 실행 방지를 추가하고, 구현된 제한 역할 gate를 실제 DB에서 검증한다. renderer는 `-`를 포함하는 앱 유래 역할명에 identifier quoting을 적용한다.
 - DB 리소스의 저장 공간·백업 비용·복원 가능성과 앱 replica 비용을 따로 계산한다. KEDA는 DB 용량이나 DB 노드를 자동 증설하는 기능이 아니다.
+
+## 8. 노드·CSP에 종속되지 않는 DB 운영 — 제안, 미구현
+
+목표는 특정 VM이나 CSP 디스크를 계속 붙잡는 것이 아니라, **다른 환경에서 데이터를 복원하고 검증한 뒤 쓰기 대상을 전환할 수 있는 것**이다.
+현재 구현은 CNPG `instances: 1`, 기본 `local-path`, `bootstrap.initdb`뿐이다. 아래 백업·복구·복제·승격 경로와 RPO/RTO는 아직 구현·시험하지 않았다.
+기존 M0–M7 및 스키마 migration 작업은 그대로 필요하며, 이 제안이 완료 근거를 대신하지 않는다.
+
+### 우선순위: 두 번째 CSP에서 복원부터 검증
+
+| 단계 | 제안하는 작업 | 완료 판정에 필요한 증거 |
+| --- | --- | --- |
+| 1. 백업 기반 독립성 | CNPG + Barman Cloud Plugin으로 물리 백업과 WAL을 별도 object store에 보존하고, 두 번째 CSP의 독립 클러스터에 복원 | 백업 ID·WAL 범위·목표 시점, 원본 없이 대상에서 복원한 결과, 데이터/앱 검증, 실측 RPO/RTO |
+| 2. 복구 시간 단축 | CSP별 독립 Kubernetes/CNPG 클러스터 사이에 비동기 replica cluster를 유지 | 복제 지연·WAL 누락 감시, 네트워크 단절 시험, 승격·재합류 연습, 쓰기 primary가 항상 하나라는 확인 |
+| 3. 승인된 전환 | 기존 primary의 쓰기를 차단한 근거를 확보한 뒤 대상 승격, 연결 endpoint 변경, pool 재연결, 읽기·쓰기 검증 | 원본 fencing → 승격 → 연결 전환 순서와 결과, 실패 시 중단 조건, 이전 primary의 재복제/재합류 절차 |
+
+Barman Cloud Plugin은 물리 백업·WAL archive/restore·PITR를 제공한다. 적용 시 CNPG/플러그인 호환 버전을 고정하고 TLS·object-store 인증·보존 정책을 함께 준비한다. 백업이 원래 CSP에만 있거나 복원 자격을 원래 환경에서만 얻을 수 있다면 CSP 장애 시 독립 복구가 되지 않는다. [공식 플러그인 소개](https://cloudnative-pg.io/plugin-barman-cloud/docs/intro/)
+
+2단계는 하나의 k3s를 WAN 너머로 늘이는 구성이 아니다. CSP별 제어면·스토리지를 분리하고 PostgreSQL 복제를 사용한다. CNPG의 DR용 distributed topology와 단순 읽기 전용 standalone replica cluster를 구분해 선택한다. replica를 추가했다고 CSP 간 자동 failover가 완성되는 것은 아니다. [CNPG replica clusters](https://cloudnative-pg.io/docs/1.27/replica_cluster/)
+
+비동기 복제에는 미반영 쓰기 손실 가능성이 있으므로 RPO를 0으로 약속하지 않는다. RTO에는 복원/승격뿐 아니라 fencing, DNS/endpoint 전환, pool 재연결, 앱 검증 시간을 포함한다. 실제 장애·복구 연습에서 각각 측정한다. 네트워크 단절만으로 원본이 중지됐다고 판단하지 않으며, 원본 쓰기 차단을 확인할 수 없으면 승격을 차단한다.
+
+전환 계획은 데이터 파일 외의 다음 계약도 함께 다뤄야 한다.
+
+- PostgreSQL major 버전·확장 바이너리·collation과 migration revision의 호환성.
+- owner/runtime/replication 역할, 권한과 승인된 Secret 참조; Kubernetes Secret/TLS 인증서가 WAL만으로 옮겨진다고 가정하지 않는다.
+- 복제/백업 목적지 네트워크 허용, TLS 신뢰·hostname, 복원 측의 object-store 읽기 권한.
+- 앱 endpoint·연결 pool의 재연결/기존 세션 종료, 읽기·쓰기 및 runtime DDL 거부 검증.
+
+### 대안과 경계
+
+- **VM·온프레 PostgreSQL:** Kubernetes 운영을 원하지 않으면 Patroni로 primary/standby와 DCS를 관리하고 pgBackRest로 백업·WAL·복원을 구성하는 대안을 검토한다. 두 DC의 비동기 standby 승격에서도 원본 fencing이 먼저이며, DCS quorum과 별도 백업 운영 책임이 생긴다. [Patroni multi-DC](https://patroni.readthedocs.io/en/latest/ha_multi_dc.html), [pgBackRest 안내](https://pgbackrest.org/user-guide.html)
+- **Longhorn 또는 Rook/Ceph:** 볼륨 복제·복구 계층의 선택지다. 볼륨 HA/DR를 추가해도 PostgreSQL의 단일 writer, WAL/PITR, CSP 간 승격·데이터 일관성 정책이 자동으로 생기지는 않는다. DB 계층의 검증과 구분한다. [Longhorn 볼륨 복제](https://longhorn.io/docs/1.13.0/what-is-longhorn/), [Rook/Ceph 개요](https://rook.io/docs/rook/latest/Getting-Started/intro/)
+- **분산 SQL:** 여러 지역의 쓰기 요구가 단일-primary PostgreSQL로 충족되지 않을 때만 별도 엔진 변경안으로 평가한다. SQL/트랜잭션 호환성, 지연·quorum, 데이터 이관과 운영 비용을 검증하기 전 기본안으로 바꾸지 않는다.
+
+다음 구현 단위는 **백업 하나를 두 번째 CSP에 복원하는 M7 확장 시험**이다. 그 결과를 확보하기 전에 다중 CSP DB HA나 자동 승격을 지원한다고 표시하지 않는다.
