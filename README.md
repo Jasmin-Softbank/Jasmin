@@ -2,7 +2,15 @@
 
 Python FastAPI로 구현한 단일 프로젝트 범위의 OpenStack 제어 API입니다. 초기 범위는 서버 생성·조회·삭제·전원 제어와 이미지·사양·기존 네트워크 조회입니다. 상위 Provider Interface 명세가 확정되면 HTTP 변환 계층에서 맞출 수 있도록 내부 호출 규약을 분리했습니다.
 
-코드 개발과 Git 이력은 이 dev 디렉토리에서 관리합니다. 초기 계획은 상위 control-plane 디렉토리, 구현 기준 계약은 [docs/contracts.md](docs/contracts.md)에 있습니다. 실제 OpenStack 연결·자원 생성 시험은 아직 수행하지 않았습니다.
+코드 개발과 Git 이력은 이 dev 디렉토리에서 관리합니다. 초기 계획은 상위 control-plane 디렉토리, 구현 기준 계약은 [docs/contracts.md](docs/contracts.md)에 있습니다. 실제 내부 DevStack의 demo 프로젝트에 대한 인증·상태·목록 읽기를 확인했습니다. 실제 자원 생성·삭제 시험은 수행하지 않았습니다.
+
+## 현재 준비된 환경 실행
+
+```sh
+uv run --frozen python scripts/run_local.py
+```
+
+이 명령은 로컬 API와 기존 SSH 접속을 이용하는 터널을 함께 실행합니다. 접속 정보는 Git에서 제외된 .env와 .local에 준비했습니다. 대상은 외부 nate2402 프로젝트에 설치된 내부 DevStack의 demo 프로젝트입니다. API 문서는 [Markdown 안내](docs/api-guide.md), [PDF 안내](output/pdf/openstack-api-guide.pdf), [OpenAPI 명세](docs/openapi.json)를 참고하세요.
 
 ## 설치 및 검사
 
@@ -55,7 +63,7 @@ cp .env.example .env
 uv run --frozen uvicorn control_plane.main:create_app --factory --env-file .env --host 127.0.0.1 --port 8000
 ```
 
-- CP_PROJECT_ID에는 nate2402의 실제 ID를 넣습니다. 이름을 ID로 사용하지 않습니다.
+- CP_PROJECT_ID에는 제어할 OpenStack의 실제 프로젝트 ID를 넣습니다. 준비된 로컬 설정은 내부 DevStack의 demo ID이며, 외부 nate2402의 ID와 다릅니다.
 - Keystone 비밀번호 방식과 애플리케이션 자격증명 방식 중 하나만 설정합니다.
 - CP_API_TOKEN은 이 제어 API의 호출자 토큰이며, Keystone 자격증명과 다릅니다.
 - 서비스 주소는 Keystone에서 검색하고, 연결 대상의 프로젝트를 매 요청 검증합니다. OS_* 환경변수나 clouds.yaml을 자동으로 읽지 않습니다.

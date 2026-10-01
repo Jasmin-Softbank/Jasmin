@@ -46,3 +46,11 @@ uv build --offline
 ```
 
 검증한 버전은 Python3.12.14, FastAPI0.142.2, openstacksdk4.20.0, keystoneauth1 5.17.0입니다. 전체 의존성은 uv.lock에 고정되어 있습니다. 실제 OpenStack 버전 표기2025.02에 대한 호환성은 실제 서비스 조회 후 확인해야 합니다.
+
+## 실제 배포 환경 읽기 확인
+
+2026-10-01에 환경준비 - OpenStack 세션의 기존 SSH 접속을 사용하여 내부 DevStack demo 프로젝트의 설정을 로컬 .env에 반영했습니다. 비밀 파일은 Git에서 제외하고 소유자 전용 권한으로 저장했습니다.
+
+실제 Uvicorn과 SSH 터널을 실행하여 /health/live, /health/ready, /api/v1/servers?limit=1, /api/v1/images?limit=1, /api/v1/flavors?limit=1, /api/v1/networks?limit=1이 모두200을 반환하는 것을 확인했습니다. 잘못된 호출자 토큰은401로 차단됐습니다.
+
+최초 ready는503이었으며, 준비 상태 읽기 제한을5초에서20초로 늘린 후 같은 읽기 검증이 모두 통과했습니다. 검증용 API와 터널은 종료했습니다. 실제 서버 생성·삭제·전원 제어는 실행하지 않았습니다. 위 표의 실제 환경 미실행 표시는 초기 구현 당시 기록이며, 이 절이 현재의 추가 검증 결과입니다.

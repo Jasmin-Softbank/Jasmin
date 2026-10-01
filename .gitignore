@@ -14,3 +14,6 @@ clouds.yaml
 secure.yaml
 *.log
 .DS_Store
+
+.local/
+tmp/
