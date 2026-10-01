@@ -35,7 +35,9 @@ class Settings(BaseSettings):
             raise ValueError("CP_API_TOKEN must not be blank")
         for value in (self.project_id, self.provider_id, self.principal_id):
             if not value.strip() or value != value.strip():
-                raise ValueError("Identity settings must be nonblank without surrounding whitespace")
+                raise ValueError(
+                    "Identity settings must be nonblank without surrounding whitespace"
+                )
         return self
 
     def validate_openstack(self) -> None:
@@ -47,7 +49,9 @@ class Settings(BaseSettings):
             raise ValueError("CP_AUTH_URL must not contain credentials, query, or fragment")
         if self.auth_type == "password":
             if not all((self.username, self.password, self.user_domain_name)):
-                raise ValueError("Password authentication requires username, password and user domain")
+                raise ValueError(
+                    "Password authentication requires username, password and user domain"
+                )
             if self.application_credential_id or self.application_credential_secret:
                 raise ValueError("Do not mix authentication methods")
         else:
