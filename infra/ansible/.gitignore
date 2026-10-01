@@ -1,0 +1,6 @@
+inventory/hosts.yml
+artifacts/
+.token-usage/
+__pycache__/
+*.retry
+.local/
