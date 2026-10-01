@@ -13,6 +13,7 @@
 - [검증과 오류 처리](#검증과-오류-처리)
 - [제거](#제거)
 - [자동 테스트](#자동-테스트)
+- [별도 VM에서 Provider 모의 통합 검사](#별도-vm에서-provider-모의-통합-검사)
 - [Provider 및 Ansible 연결](#provider-및-ansible-연결)
 - [확정이 필요한 계약과 후속 모듈](#확정이-필요한-계약과-후속-모듈)
 
@@ -247,6 +248,51 @@ sudo ./deployment/scripts/test-poc.sh --disposable-node \
 AWS·GCP·OpenStack fixture가 같은 로컬 노드의 동일 엔진을 통과하는지 확인합니다. 이는 실제 CSP(퍼블릭 클라우드 사업자)의 자원이나 네트워크를 시험한 결과가 아닙니다. 새 노드라면 clean install(최초 설치)을 수행하고, 이미 설치돼 있으면 해당 항목을 SKIP합니다. 마지막 전체 제거·재설치는 별도로 검사합니다.
 
 2026-10-02의 실제 수행 결과는 [검증 기록](scripts/tests/results/VALIDATION-2026-10-02.md)에 정리합니다.
+
+## 별도 VM에서 Provider 모의 통합 검사
+
+`provider_simulation.py`는 AWS·GCP·OpenStack이 준비한 Linux 노드를 각각 **새 Lima VM(맥에서 실행하는 Linux 가상 머신)**으로 모의 구성합니다. 기존 fixture(시험용 입력)를 사용하며, provider별 분기문을 공통 엔진에 추가하지 않습니다. `deploy.sh`·`verify.sh`·`cleanup.sh`가 호출하는 동일한 `runtime.py`에 JSON을 전달합니다.
+
+호스트 전제조건은 macOS Apple Silicon, Lima, Python 3.12 이상, 인터넷 연결입니다. 검증한 호스트는 RAM 16 GiB이며, 각 VM은 CPU 2개·RAM 4 GiB·디스크 20 GiB를 사용합니다. 메모리를 절약하기 위해 세 VM을 순서대로 실행합니다. 실행 중인 다른 VM이 많다면 먼저 충분한 메모리를 확보해 주시기 바랍니다.
+
+```bash
+# 저장소 루트의 Mac 터미널에서 실행합니다.
+python3 deployment/scripts/tests/provider_simulation.py --disposable-vms \
+  > provider-result.json 2> provider-test.log
+```
+
+`--disposable-vms`는 이 검사에서 생성한 전용 VM 안의 K3s·Cilium·앱을 마지막에 제거한다는 명시적 실행 옵션입니다. 이미 있는 VM을 대상으로 실행하지 않습니다. VM 디스크와 로그는 보존하고 VM만 정지합니다.
+
+| 모의 대상 | hostname(노드 이름) | 시험용 NIC(네트워크 장치) / 주소 | Mac 확인 포트 |
+| --- | --- | --- | --- |
+| AWS | `ip-10-250-10-11` | `awsnic0` / `10.250.10.11` | `30084` |
+| GCP | `gce-railshot-01` | `gcpnic0` / `10.250.20.12` | `30085` |
+| OpenStack | `openstack-railshot-01` | `osnic0` / `10.250.30.13` | `30086` |
+
+세 노드는 Ubuntu 24.04 **arm64**입니다. 시험용 NIC는 dummy(소프트웨어 가상 장치)이며, 이미지 다운로드에는 Lima 기본 NIC를 사용합니다. 각 IP가 실제 노드에 할당되고 K3s Node InternalIP 및 결과 endpoint에 반영되는지 확인합니다. EC2·GCE의 실제 NIC·라우팅을 재현한 것은 아닙니다. **amd64 실행은 아직 검증하지 않았습니다.**
+
+각 노드에서 다음 8개 검사를 수행합니다.
+
+1. K3s 파일이 없는 새 노드에 K3s → Cilium → nginx → Service를 설치합니다.
+2. 같은 입력으로 재실행하고 Deployment·Pod UID(리소스 고유 식별값)가 유지되는지 확인합니다.
+3. Cilium·Node 준비 상태, DNS(서비스 이름 조회) → Service → HTTP 200 및 노드 endpoint를 확인합니다.
+4. nginx 이미지를 `1.28.0-alpine`에서 `1.28.1-alpine`으로 업데이트합니다.
+5. 업데이트한 앱의 상태와 endpoint를 다시 확인합니다.
+6. 앱을 제거하고 Deployment·Service가 없는지 확인합니다.
+7. 원래 입력으로 앱을 다시 배포합니다.
+8. K3s·Cilium 전체 제거 후 K3s 바이너리·데이터·설정이 없는지 확인합니다.
+
+위 과정 중 Mac → Lima SSH 포워딩(포트를 VM에 전달하는 연결) → NodePort 경로에서도 HTTP 200과 샘플 본문을 확인합니다. Runtime 소스의 SHA-256(파일 내용 식별값)을 비교하여 모든 노드에서 동일한 엔진을 실행했는지도 확인합니다. 진행 결과는 stderr, provider별 결과 JSON은 stdout으로 반환하며 단계별 원본 JSON·로그는 `scripts/tests/results/provider-simulation/<실행 ID>/`에 보존합니다.
+
+실제 결과는 [Provider 모의 통합 검증 기록](scripts/tests/results/PROVIDER-SIMULATION-2026-10-02.md)에서 확인하실 수 있습니다. VM을 정지한 뒤에는 확인 포트가 열려 있지 않습니다. 디스크까지 제거하려면 결과를 보존한 후 아래 명령의 이름을 결과 JSON에 기록된 해당 VM 이름으로 바꿔 실행합니다.
+
+```bash
+limactl delete --force railshot-sim-aws-<실행-ID>
+limactl delete --force railshot-sim-gcp-<실행-ID>
+limactl delete --force railshot-sim-openstack-<실행-ID>
+```
+
+이 검사는 AWS IAM·Security Group·Elastic IP·VPC routing, GCP IAM·VPC Firewall·External IP 및 실제 cloud metadata semantics를 검증하지 않습니다. 해당 항목은 모두 **`requires real cloud smoke test`(실제 클라우드에서 짧은 통합 확인 필요)**입니다. 공통 엔진이 metadata(클라우드가 노드에 제공하는 정보)를 읽지 않으므로 metadata mock은 추가하지 않았습니다.
 
 ## Provider 및 Ansible 연결
 
