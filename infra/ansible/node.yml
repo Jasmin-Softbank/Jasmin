@@ -16,6 +16,12 @@
   vars_files:
     - /etc/railshot/node.yml
   tasks:
+    - name: Reject retired node-wide registry credential configuration
+      ansible.builtin.assert:
+        that: ghcr_token_param is not defined
+        fail_msg: 'ghcr_token_param is retired. Migrate to an administrator-provisioned namespace imagePullSecret; review existing node credentials separately. Bootstrap does not remove or rotate them.'
+        quiet: true
+
     - name: Validate administrator-selected target bindings
       ansible.builtin.assert:
         that:
@@ -27,6 +33,7 @@
           - gitops_path is match('^clusters/[a-z0-9_-]+/platform$')
           - gitops_revision is match('^[A-Za-z0-9_./-]+$')
           - "'..' not in gitops_path and '..' not in gitops_revision"
+          - gitops_token_param is not defined or (cloud_provider == 'aws' and gitops_token_param is string and gitops_token_param is match('^/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$'))
         quiet: true
 
     - name: Inspect existing k3s installation before changing the binary
@@ -114,7 +121,7 @@
       ansible.builtin.command: snap install aws-cli --classic
       args:
         creates: /snap/bin/aws
-      when: cloud_provider == 'aws'
+      when: cloud_provider == 'aws' and gitops_token_param is defined
 
     - name: Manifests directory
       ansible.builtin.file:
@@ -128,19 +135,6 @@
         dest: "{{ manifests }}/{{ item }}"
         mode: "0600"
       loop: [cilium.yaml, traefik-config.yaml, argocd.yaml]
-
-    - name: GHCR pull credentials from SSM (optional)
-      ansible.builtin.shell: |
-        set -euo pipefail
-        tok=$(/snap/bin/aws ssm get-parameter --region {{ region | quote }} --name {{ ghcr_token_param | quote }} --with-decryption --query Parameter.Value --output text)
-        test -n "$tok" && test "$tok" != None
-        umask 077; mkdir -p /etc/rancher/k3s
-        printf 'configs:\n  ghcr.io:\n    auth:\n      username: railshot\n      password: %s\n' "$tok" > /etc/rancher/k3s/registries.yaml
-      args:
-        executable: /bin/bash
-        creates: /etc/rancher/k3s/registries.yaml
-      no_log: true
-      when: cloud_provider == 'aws' and ghcr_token_param is defined
 
     - name: k3s binary (pinned by sha256)
       ansible.builtin.get_url:

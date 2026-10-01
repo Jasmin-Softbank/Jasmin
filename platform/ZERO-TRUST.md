@@ -18,10 +18,10 @@
 | 사용자 코드·spec | 없음 | 없음. 게이트·렌더러를 통과한 결과만 GitOps로 간다 |
 | LLM 에이전트 | 없음 (비신뢰 입력을 읽음) | 읽기뿐. 파일은 JSON으로 내고 실행기가 경로 검사 후 쓴다 |
 | 사용자 검증 CI | 비신뢰 코드를 실행 | 격리 빌드·테스트, 클라우드/registry/GitOps/cluster 자격 없음 |
-| 신뢰된 release | 검증 artifact만 소비 | 동일 이미지 GHCR push; 사용자 코드를 실행하지 않음 |
+| 신뢰된 release | 검증 artifact만 소비 | 동일 이미지 GHCR/OCI push; 해당 package에 허용된 게시 자격만 사용하며 사용자 코드를 실행하지 않음. [연결·검증 상태](contract/registry.md) |
 | 전용 CD worker | 보호된 private workflow만 실행 | GitOps 쓰기 + 자기 클러스터의 Argo Application `get`; Secret·Pod exec·클러스터 변경 권한 없음 |
 | GitOps 레포 | 입력의 정본 | 클러스터가 당겨 가는 유일한 원천 |
-| 노드 | 플랫폼 경계 | 자기 노드의 GitOps/GHCR read-token 두 SSM ARN만 읽기. 단일 노드라 노드가 곧 신뢰 경계다(아래 한계) |
+| 노드 | 플랫폼 경계 | 명시적으로 등록한 GitOps read-token만 선택적으로 사용. 제품 이미지 pull은 namespace별 Secret 참조가 목표이며, 노드 전체 GHCR 자격을 tenant 격리로 취급하지 않음. 기존 live 노드 설정의 자동 변경·회전은 하지 않음 |
 
 ## 외부 공개 진입과 클러스터 내부 허용
 
@@ -45,7 +45,7 @@
 | 배포 | Argo CD가 Git을 폴링 | CI → 클러스터 자격, webhook |
 | 관리 접속 | SSM Session Manager(에이전트가 밖으로 연결), 포트 포워딩으로 UI | SSH, 배스천, 공개 UI |
 | 비밀 | 노드가 SSM에서 당김, DB 비밀번호는 클러스터 안 생성 | 비밀 주입 API |
-| 이미지 | containerd가 GHCR에서 당김 | 레지스트리 푸시 수신 |
+| 이미지 | containerd가 등록된 GHCR/OCI endpoint에서 당김 | 앱 노드가 레지스트리 push를 수신하지 않음 |
 | Argo 관측 | 내부 CD worker가 Application을 읽고 GitHub artifact로 결과 전송 | 공개 Argo API·6443 |
 | 외부 도달성 | 별도 hosted runner의 공개 URL probe | 관리 포트 불필요. HTTP 성공만으로 새 revision 성공을 단정하지 않음 |
 | 온프렘 | 같은 pull 모델 | 제어용 인바운드 0 |
@@ -101,7 +101,7 @@ aws ssm start-session --target <instance-id>
 ## 알려진 한계와 다음 단계
 
 - 단일 노드에서는 노드가 신뢰 경계다. 노드 역할이 자기 read-token 두 개를 읽으므로 파드가 노드 자격에 닿지 않게 IMDS 홉 제한 1과 명시 거부를 둘 다 둔다.
-- 플랫폼 네임스페이스(`argocd`, `cnpg-system`, `external-secrets`, `monitoring`, `kube-system`)의 outbound는 아직 기본 허용이다. KEDA는 tenant API deny에서 제외하고 별도 DNS/API/metrics 통신으로 제한한다. 전체 baseline + KEDA 동작은 새 live 재검증이 필요하다. Argo/GHCR host pull까지 FQDN 제한 완료로 표시하지 않는다.
+- 플랫폼 네임스페이스(`argocd`, `cnpg-system`, `external-secrets`, `monitoring`, `kube-system`)의 outbound는 아직 기본 허용이다. KEDA는 tenant API deny에서 제외하고 별도 DNS/API/metrics 통신으로 제한한다. 전체 baseline + KEDA 동작은 새 live 재검증이 필요하다. Argo/registry host pull까지 FQDN 제한 완료로 표시하지 않는다.
 - ESO가 AWS 비밀을 읽게 되는 변경(P1)에는 테넌트 경로 접두어로 제한한 스토어와 ExternalSecret 출처를 막는 VAP를 함께 넣는다.
 - HTTPS·HSTS는 도메인 구매 뒤(cert-manager). 그때 SG 443을 연다(`https_enabled`).
 - 파드 간 암호화는 단일 노드라 두지 않는다. 멀티 노드에서 Cilium WireGuard.

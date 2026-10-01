@@ -116,21 +116,18 @@ class AppNodeParameterPolicyTests(unittest.TestCase):
     def test_managed_policy_parameter_read_grant_is_explicitly_narrowed(self):
         source = (ROOT / 'infra/terraform/aws/main.tf').read_text()
         policy = source.split('resource "aws_iam_role_policy" "node_params" {', 1)[1].split('\nresource ', 1)[0]
-        self.assertRegex(policy, r'Effect\s*=\s*"Allow"\s+Action\s*=\s*\["ssm:GetParameter"\]\s+Resource\s*=\s*local.node_parameter_arns')
-        self.assertRegex(policy, r'Effect\s*=\s*"Deny"\s+Action\s*=\s*\["ssm:GetParameter",\s*"ssm:GetParameters"\]\s+NotResource\s*=\s*local.node_parameter_arns')
+        self.assertIn('jsonencode(local.node_parameter_policy)', policy)
+        self.assertRegex(source, r'Effect\s*=\s*"Deny"\s*,\s*Action\s*=\s*\["ssm:GetParameter"\]\s*,\s*NotResource\s*=\s*local.node_parameter_arns')
+        self.assertIn('"ssm:GetParametersByPath"', source)
         self.assertNotIn('parameter/${var.name}/*', policy)
 
     def test_allowed_parameters_are_exact_bootstrap_refs_not_control_auth(self):
         source = (ROOT / 'infra/terraform/aws/main.tf').read_text()
-        names = re.search(r'for name in \[([^\]]+)\]\s*:', source)
-        self.assertIsNotNone(names)
-        names = set(re.findall(r'"([^"]+)"', names[1]))
-        # node_config is now yamlencoded once in main.tf then embedded by cloud-init.
-        references = set(re.findall(r'(?:gitops|ghcr)_token_param\s*=\s*"/\$\{var.name\}/([^\"]+)"', source))
-        self.assertEqual(names, references)
-        self.assertEqual(names, {'gitops-read-token', 'ghcr-read-token'})
-        self.assertIn('parameter/${var.name}/${name}"', source)
-        self.assertNotIn('codex/operator-primary/auth', ''.join(names))
+        self.assertNotIn('ghcr_token_param', source)
+        self.assertNotIn('ghcr-read-token', source)
+        self.assertNotIn('codex/operator-primary/auth', source)
+        self.assertIn('parameter${var.gitops_token_param}', source)
+        self.assertIn('var.gitops_token_param == null ? {} : { gitops_token_param = var.gitops_token_param }', source)
 
 
 if __name__ == '__main__':

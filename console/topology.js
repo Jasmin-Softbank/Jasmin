@@ -18,7 +18,7 @@
     value.textContent=text; return value;
   };
   function checked(proposal,review) {
-    if (!proposal || proposal.status!=='DRAFT' || proposal.version!==1 || !review || review.status!=='REVIEW_REQUIRED' || review.apply_supported!==false ||
+    if (!proposal || proposal.status!=='DRAFT' || proposal.version!==1 || !['describe','create','change'].includes(proposal.intent) || !review || review.status!=='REVIEW_REQUIRED' || review.apply_supported!==false ||
         !Array.isArray(proposal.nodes) || !proposal.nodes.length || proposal.nodes.length>24 || !Array.isArray(proposal.edges) || proposal.edges.length>48 ||
         !Array.isArray(review.unsupported) || !Array.isArray(review.conflicts)) return false;
     const ids=new Set();
@@ -36,14 +36,15 @@
       section.append(el('p','검증된 토폴로지 초안을 읽을 수 없어요. 실제 환경은 변경되지 않았습니다.','nv-topology-note'));
       return section;
     }
+    const descriptive=proposal.intent==='describe';
     const heading=el('div','','nv-topology-heading');
-    heading.append(el('strong','구성 초안'),el('span','DRAFT · 미반영','nv-topology-status'));
-    section.append(heading,el('p','연결 방향과 관리 주체를 검토해 주세요. 실제 자원 상태를 나타내는 화면이 아닙니다.','nv-topology-note'));
+    heading.append(el('strong',descriptive?'시스템 구성 설명':'구성 초안'),el('span',descriptive?'설명도 · 상태는 메시지 관측 시점 기준':'DRAFT · 미반영','nv-topology-status'));
+    section.append(heading,el('p',descriptive?'제공된 시스템 계약과 관측을 바탕으로 작성한 설명도입니다. 자원 변경을 실행하지 않습니다.':'연결 방향과 관리 주체를 검토해 주세요. 실제 자원 상태를 나타내는 화면이 아닙니다.','nv-topology-note'));
     const viewport=el('div','','nv-topology-viewport'); viewport.tabIndex=0;
     viewport.setAttribute('aria-label','구성도. 넓은 그래프는 가로로 스크롤할 수 있습니다.');
     const columns=proposal.nodes.length===1?1:2, width=columns*264, height=Math.ceil(proposal.nodes.length/columns)*156+24;
     const diagram=svg('svg',{viewBox:`0 0 ${width} ${height}`,width,height,role:'img','aria-labelledby':`nv-topology-title-${++counter}`});
-    diagram.append(svg('title',{id:`nv-topology-title-${counter}`},'아직 적용하지 않은 구성 제안. 전체 이름과 연결은 아래 구성 상세에서 읽을 수 있습니다.'));
+    diagram.append(svg('title',{id:`nv-topology-title-${counter}`},`${descriptive?'관측과 계약 기반 시스템 설명':'아직 적용하지 않은 구성 제안'}. 전체 이름과 연결은 아래 구성 상세에서 읽을 수 있습니다.`));
     const markerId=`nv-topology-arrow-${counter}`;
     const defs=svg('defs'),marker=svg('marker',{id:markerId,viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto-start-reverse'});
     marker.append(svg('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'#829b8a'})); defs.append(marker); diagram.append(defs);
@@ -72,8 +73,10 @@
     const list=el('ul','');const names=new Map(proposal.nodes.map(node=>[node.id,node.label]));
     proposal.nodes.forEach(node=>list.append(el('li',`${node.label} — ${kinds[node.kind]}, ${owners[node.managed_by]}`)));
     proposal.edges.forEach(edge=>list.append(el('li',`${names.get(edge.from)} → ${names.get(edge.to)} (${relations[edge.kind]})`)));
+    (proposal.assumptions || []).forEach(text=>list.append(el('li',`가정: ${text}`)));
+    (proposal.evidence_refs || []).forEach(text=>list.append(el('li',`근거: ${text}`)));
     details.append(list);section.append(details);
-    const notices=[...review.unsupported,...review.conflicts.map(conflict=>conflict.reason)];
+    const notices=[...(descriptive?[]:review.unsupported),...review.conflicts.map(conflict=>conflict.reason)];
     [...new Set(notices)].forEach(reason=>section.append(el('p',reasons[reason] || '이 구성에는 아직 지원이 확인되지 않은 항목이 있어요.','nv-topology-note')));
     if (typeof onEdit==='function') {
       const edit=el('button','수정 요청 쓰기','nv-topology-edit');edit.type='button';

@@ -72,7 +72,7 @@
 
 | ID | 요구 | P |
 |---|---|---|
-| FR-DP-1 | 통과 artifact binding → 동일 검증 이미지 GHCR publish → GitOps 커밋 → Argo sync/operation 관측. Terraform apply는 관리자 기반 자원 작업으로 분리 | P0 |
+| FR-DP-1 | 통과 artifact binding → 동일 검증 이미지 GHCR/OCI publish → GitOps 커밋 → Argo sync/operation 관측. Terraform apply는 관리자 기반 자원 작업으로 분리. [레지스트리 계약](contract/registry.md) | P0 |
 | FR-DP-2 | 앱마다 추측 불가 서브도메인, 와일드카드 DNS·인증서 | P0 (PoC는 sslip.io HTTP) |
 | FR-DP-3 | Argo target/revision/operation/health/image-summary + 별도 공개 URL probe. live Pod digest·revision-bound HTTP·앱별 자동 LKG는 미구현 | P0 |
 | FR-DP-4 | 배포 전략: 롤링 기본, Canary·Blue-Green은 Argo Rollouts(§8) | P1 |

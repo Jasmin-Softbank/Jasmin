@@ -459,152 +459,156 @@ class ControlState:
         input_lease_id=None,
     ):
         with self._tx(ctx, "job.submit") as db:
-            ws = self._workspace(db, ctx, workspace_id)
-            identifier(kind)
-            identifier(idempotency_key)
-            sha256(request_hash)
-            if kind not in (
-                "ci",
-                "agent",
-                "prepare",
-                "terminal",
-                "deploy",
-                "vm.stop",
-                "vm.delete",
-                "vm.restart",
-                "vm.create",
-                "scale",
-            ):
-                raise fail("CONTROL_CONFIG_INVALID", "job.submit")
-            if (
-                kind not in ("ci", "agent", "prepare", "terminal")
-                and operation_id is None
-            ):
-                raise fail("CONTROL_ALLOW_INVALID", "job.submit")
-            if type(requires_ready) is not bool or (
-                not requires_ready
-                and (
-                    not ctx.is_admin
-                    or kind
-                    not in ("prepare", "terminal", "vm.create", "vm.stop", "vm.delete")
-                )
-            ):
-                raise fail("CONTROL_ACCESS_DENIED", "job.submit")
-            if kind == "terminal":
-                lease = (
-                    db.execute(
-                        sql_text("SELECT * FROM leases WHERE id=:input_lease_id"),
-                        {"input_lease_id": input_lease_id},
-                    )
-                    .mappings()
-                    .fetchone()
-                )
-                if (
-                    not ctx.is_admin
-                    or lease is None
-                    or (
-                        lease["tenant_id"],
-                        lease["workspace_id"],
-                        lease["principal_id"],
-                    )
-                    != (ctx.tenant_id, workspace_id, ctx.principal_id)
-                    or lease["expires_at"] <= self.clock()
-                    or not ws["resource_id"]
-                ):
-                    raise fail("CONTROL_LEASE_EXPIRED", "job.submit")
-            elif input_lease_id is not None:
-                raise fail("CONTROL_CONFIG_INVALID", "job.submit")
-            old = (
+            return self._submit(db, ctx, workspace_id, kind=kind, request_hash=request_hash, idempotency_key=idempotency_key, requires_ready=requires_ready, operation_id=operation_id, input_lease_id=input_lease_id)
+
+    def _submit(self, db, ctx, workspace_id, *, kind, request_hash, idempotency_key,
+                requires_ready=True, operation_id=None, input_lease_id=None):
+        ws = self._workspace(db, ctx, workspace_id)
+        identifier(kind)
+        identifier(idempotency_key)
+        sha256(request_hash)
+        if kind not in (
+            "ci",
+            "agent",
+            "prepare",
+            "terminal",
+            "deploy",
+            "vm.stop",
+            "vm.delete",
+            "vm.restart",
+            "vm.create",
+            "scale",
+        ):
+            raise fail("CONTROL_CONFIG_INVALID", "job.submit")
+        if (
+            kind not in ("ci", "agent", "prepare", "terminal")
+            and operation_id is None
+        ):
+            raise fail("CONTROL_ALLOW_INVALID", "job.submit")
+        if type(requires_ready) is not bool or (
+            not requires_ready
+            and (
+                not ctx.is_admin
+                or kind
+                not in ("prepare", "terminal", "vm.create", "vm.stop", "vm.delete")
+            )
+        ):
+            raise fail("CONTROL_ACCESS_DENIED", "job.submit")
+        if kind == "terminal":
+            lease = (
                 db.execute(
-                    sql_text(
-                        "SELECT * FROM jobs WHERE tenant_id=:tenant_id AND workspace_id=:workspace_id AND idempotency_key=:idempotency_key"
-                    ),
-                    {
-                        "tenant_id": ctx.tenant_id,
-                        "workspace_id": workspace_id,
-                        "idempotency_key": idempotency_key,
-                    },
+                    sql_text("SELECT * FROM leases WHERE id=:input_lease_id"),
+                    {"input_lease_id": input_lease_id},
                 )
                 .mappings()
                 .fetchone()
             )
-            if old is not None:
-                if (
-                    old["request_hash"],
-                    old["kind"],
-                    old["requires_ready"],
-                    old["operation_id"],
-                    old["input_lease_id"],
-                ) != (
-                    request_hash,
-                    kind,
-                    int(requires_ready),
-                    operation_id,
-                    input_lease_id,
-                ):
-                    raise fail("CONTROL_CONFLICT", "job.submit")
-                return self._public_job(old)
-            if ws["state"] != "ACTIVE" and kind not in ("vm.stop", "vm.delete"):
-                raise fail("CONTROL_CONFLICT", "job.submit")
-            if operation_id is not None:
-                operation = (
-                    db.execute(
-                        sql_text("SELECT * FROM operations WHERE id=:operation_id"),
-                        {"operation_id": identifier(operation_id)},
-                    )
-                    .mappings()
-                    .fetchone()
+            if (
+                not ctx.is_admin
+                or lease is None
+                or (
+                    lease["tenant_id"],
+                    lease["workspace_id"],
+                    lease["principal_id"],
                 )
-                if (
-                    operation is None
-                    or (
-                        operation["tenant_id"],
-                        operation["workspace_id"],
-                        operation["generation"],
-                    )
-                    != (ctx.tenant_id, workspace_id, ws["generation"])
-                    or operation["operation"] != kind
-                    or operation["plan_hash"] != request_hash
-                ):
-                    raise fail("CONTROL_ALLOW_INVALID", "job.submit")
-                if (
-                    db.execute(
-                        sql_text("SELECT 1 FROM jobs WHERE operation_id=:operation_id"),
-                        {"operation_id": operation_id},
-                    )
-                    .mappings()
-                    .fetchone()
-                ):
-                    raise fail("CONTROL_CONFLICT", "job.submit")
-            job_id = str(uuid.uuid4())
-            sequence = self._event(
-                db,
-                "control.job.queued",
-                ctx=ctx,
-                workspace_id=workspace_id,
-                job_id=job_id,
-            )
+                != (ctx.tenant_id, workspace_id, ctx.principal_id)
+                or lease["expires_at"] <= self.clock()
+                or not ws["resource_id"]
+            ):
+                raise fail("CONTROL_LEASE_EXPIRED", "job.submit")
+        elif input_lease_id is not None:
+            raise fail("CONTROL_CONFIG_INVALID", "job.submit")
+        old = (
             db.execute(
                 sql_text(
-                    "INSERT INTO jobs(id,tenant_id,workspace_id,account_id,kind,request_hash,idempotency_key,operation_id,status,requires_ready,created_at,input_lease_id,queue_seq) VALUES (:job_id,:tenant_id,:workspace_id,:account_id,:kind,:request_hash,:idempotency_key,:operation_id,:value,:requires_ready,:observed_now,:input_lease_id,:sequence)"
+                    "SELECT * FROM jobs WHERE tenant_id=:tenant_id AND workspace_id=:workspace_id AND idempotency_key=:idempotency_key"
                 ),
                 {
-                    "job_id": job_id,
                     "tenant_id": ctx.tenant_id,
                     "workspace_id": workspace_id,
-                    "account_id": ws["account_id"],
-                    "kind": kind,
-                    "request_hash": request_hash,
                     "idempotency_key": idempotency_key,
-                    "operation_id": operation_id,
-                    "value": "QUEUED",
-                    "requires_ready": int(requires_ready),
-                    "observed_now": self.clock(),
-                    "input_lease_id": input_lease_id,
-                    "sequence": sequence,
                 },
             )
-            return self._public_job(self._job(db, job_id))
+            .mappings()
+            .fetchone()
+        )
+        if old is not None:
+            if (
+                old["request_hash"],
+                old["kind"],
+                old["requires_ready"],
+                old["operation_id"],
+                old["input_lease_id"],
+            ) != (
+                request_hash,
+                kind,
+                int(requires_ready),
+                operation_id,
+                input_lease_id,
+            ):
+                raise fail("CONTROL_CONFLICT", "job.submit")
+            return self._public_job(old)
+        if ws["state"] != "ACTIVE" and kind not in ("vm.stop", "vm.delete"):
+            raise fail("CONTROL_CONFLICT", "job.submit")
+        if operation_id is not None:
+            operation = (
+                db.execute(
+                    sql_text("SELECT * FROM operations WHERE id=:operation_id"),
+                    {"operation_id": identifier(operation_id)},
+                )
+                .mappings()
+                .fetchone()
+            )
+            if (
+                operation is None
+                or (
+                    operation["tenant_id"],
+                    operation["workspace_id"],
+                    operation["generation"],
+                )
+                != (ctx.tenant_id, workspace_id, ws["generation"])
+                or operation["operation"] != kind
+                or operation["plan_hash"] != request_hash
+            ):
+                raise fail("CONTROL_ALLOW_INVALID", "job.submit")
+            if (
+                db.execute(
+                    sql_text("SELECT 1 FROM jobs WHERE operation_id=:operation_id"),
+                    {"operation_id": operation_id},
+                )
+                .mappings()
+                .fetchone()
+            ):
+                raise fail("CONTROL_CONFLICT", "job.submit")
+        job_id = str(uuid.uuid4())
+        sequence = self._event(
+            db,
+            "control.job.queued",
+            ctx=ctx,
+            workspace_id=workspace_id,
+            job_id=job_id,
+        )
+        db.execute(
+            sql_text(
+                "INSERT INTO jobs(id,tenant_id,workspace_id,account_id,kind,request_hash,idempotency_key,operation_id,status,requires_ready,created_at,input_lease_id,queue_seq) VALUES (:job_id,:tenant_id,:workspace_id,:account_id,:kind,:request_hash,:idempotency_key,:operation_id,:value,:requires_ready,:observed_now,:input_lease_id,:sequence)"
+            ),
+            {
+                "job_id": job_id,
+                "tenant_id": ctx.tenant_id,
+                "workspace_id": workspace_id,
+                "account_id": ws["account_id"],
+                "kind": kind,
+                "request_hash": request_hash,
+                "idempotency_key": idempotency_key,
+                "operation_id": operation_id,
+                "value": "QUEUED",
+                "requires_ready": int(requires_ready),
+                "observed_now": self.clock(),
+                "input_lease_id": input_lease_id,
+                "sequence": sequence,
+            },
+        )
+        return self._public_job(self._job(db, job_id))
 
     def reconcile_expired(self):
         """Lease loss after claim is uncertain; never put this job back in the queue."""
@@ -1075,35 +1079,38 @@ class ControlState:
 
     def decide_allow(self, ctx, allow_id, *, approve):
         with self._tx(ctx, "allow.decide") as db:
-            row, ws = self._allow(db, ctx, allow_id)
-            if type(approve) is not bool or row["state"] != "PENDING":
-                raise fail("CONTROL_ALLOW_INVALID", "allow.decide")
+            return self._decide_allow(db, ctx, allow_id, approve=approve)
+
+    def _decide_allow(self, db, ctx, allow_id, *, approve):
+        row, ws = self._allow(db, ctx, allow_id)
+        if type(approve) is not bool or row["state"] != "PENDING":
+            raise fail("CONTROL_ALLOW_INVALID", "allow.decide")
+        db.execute(
+            sql_text(
+                "UPDATE allows SET state=:value,approved_by=:principal_id WHERE id=:allow_id"
+            ),
+            {
+                "value": "APPROVED" if approve else "DENIED",
+                "principal_id": ctx.principal_id,
+                "allow_id": allow_id,
+            },
+        )
+        self._event(
+            db,
+            "control.allow.decided",
+            ctx=ctx,
+            workspace_id=ws["id"],
+            allow_id=allow_id,
+            approved=approve,
+        )
+        return dict(
             db.execute(
-                sql_text(
-                    "UPDATE allows SET state=:value,approved_by=:principal_id WHERE id=:allow_id"
-                ),
-                {
-                    "value": "APPROVED" if approve else "DENIED",
-                    "principal_id": ctx.principal_id,
-                    "allow_id": allow_id,
-                },
+                sql_text("SELECT * FROM allows WHERE id=:allow_id"),
+                {"allow_id": allow_id},
             )
-            self._event(
-                db,
-                "control.allow.decided",
-                ctx=ctx,
-                workspace_id=ws["id"],
-                allow_id=allow_id,
-                approved=approve,
-            )
-            return dict(
-                db.execute(
-                    sql_text("SELECT * FROM allows WHERE id=:allow_id"),
-                    {"allow_id": allow_id},
-                )
-                .mappings()
-                .fetchone()
-            )
+            .mappings()
+            .fetchone()
+        )
 
     def consume_allow(self, ctx, allow_id, *, operation, plan_hash, generation):
         """One-shot authorization plus durable operation intent in the same transaction.
@@ -1112,53 +1119,85 @@ class ControlState:
         action. This state kernel never treats an Allow as a billing reservation.
         """
         with self._tx(ctx, "allow.consume") as db:
-            row, ws = self._allow(db, ctx, allow_id)
-            if (
-                row["state"] != "APPROVED"
-                or (row["operation"], row["plan_hash"], row["generation"])
-                != (operation, plan_hash, generation)
-                or type(generation) is not int
-            ):
-                raise fail("CONTROL_ALLOW_INVALID", "allow.consume")
-            if operation in ("vm.stop", "vm.delete"):
-                self._drained(db, ws)
-            operation_id = str(uuid.uuid4())
+            return self._consume_allow(db, ctx, allow_id, operation=operation, plan_hash=plan_hash, generation=generation)
+
+    def _consume_allow(self, db, ctx, allow_id, *, operation, plan_hash, generation):
+        row, ws = self._allow(db, ctx, allow_id)
+        if (
+            row["state"] != "APPROVED"
+            or (row["operation"], row["plan_hash"], row["generation"])
+            != (operation, plan_hash, generation)
+            or type(generation) is not int
+        ):
+            raise fail("CONTROL_ALLOW_INVALID", "allow.consume")
+        if operation in ("vm.stop", "vm.delete"):
+            self._drained(db, ws)
+        operation_id = str(uuid.uuid4())
+        db.execute(
+            sql_text(
+                "INSERT INTO operations VALUES (:operation_id,:allow_id,:tenant_id,:id,:operation,:plan_hash,:generation,:observed_now)"
+            ),
+            {
+                "operation_id": operation_id,
+                "allow_id": allow_id,
+                "tenant_id": ctx.tenant_id,
+                "id": ws["id"],
+                "operation": operation,
+                "plan_hash": plan_hash,
+                "generation": generation,
+                "observed_now": self.clock(),
+            },
+        )
+        db.execute(
+            sql_text("UPDATE allows SET state='CONSUMED' WHERE id=:allow_id"),
+            {"allow_id": allow_id},
+        )
+        self._event(
+            db,
+            "control.allow.consumed",
+            ctx=ctx,
+            workspace_id=ws["id"],
+            allow_id=allow_id,
+            operation_id=operation_id,
+            generation=generation,
+        )
+        return dict(
             db.execute(
-                sql_text(
-                    "INSERT INTO operations VALUES (:operation_id,:allow_id,:tenant_id,:id,:operation,:plan_hash,:generation,:observed_now)"
-                ),
-                {
-                    "operation_id": operation_id,
-                    "allow_id": allow_id,
-                    "tenant_id": ctx.tenant_id,
-                    "id": ws["id"],
-                    "operation": operation,
-                    "plan_hash": plan_hash,
-                    "generation": generation,
-                    "observed_now": self.clock(),
-                },
+                sql_text("SELECT * FROM operations WHERE id=:operation_id"),
+                {"operation_id": operation_id},
             )
-            db.execute(
-                sql_text("UPDATE allows SET state='CONSUMED' WHERE id=:allow_id"),
-                {"allow_id": allow_id},
-            )
-            self._event(
-                db,
-                "control.allow.consumed",
-                ctx=ctx,
-                workspace_id=ws["id"],
-                allow_id=allow_id,
-                operation_id=operation_id,
-                generation=generation,
-            )
-            return dict(
-                db.execute(
-                    sql_text("SELECT * FROM operations WHERE id=:operation_id"),
-                    {"operation_id": operation_id},
-                )
-                .mappings()
-                .fetchone()
-            )
+            .mappings()
+            .fetchone()
+        )
+
+    def approve_and_submit(self, ctx, allow_id, *, plan_hash, generation):
+        """One transaction: approve + consume + durable deploy queue, or no change.
+
+        Existing operation/job is returned on replay. Claim fencing generation is
+        intentionally independent from the workspace generation bound by the plan.
+        """
+        with self._tx(ctx, "release.approve") as db:
+            if not ctx.is_admin:
+                raise fail("CONTROL_ACCESS_DENIED", "release.approve")
+            identifier(allow_id); sha256(plan_hash)
+            row = db.execute(sql_text("SELECT * FROM allows WHERE id=:id"), {"id":allow_id}).mappings().fetchone()
+            if row is None or row["tenant_id"] != ctx.tenant_id:
+                raise fail("CONTROL_ACCESS_DENIED", "release.approve")
+            ws = self._workspace(db, ctx, row["workspace_id"])
+            if (row["operation"],row["plan_hash"],row["generation"]) != ("deploy",plan_hash,generation) or type(generation) is not int:
+                raise fail("CONTROL_ALLOW_INVALID", "release.approve")
+            existing = db.execute(sql_text("SELECT j.* FROM jobs j JOIN operations o ON j.operation_id=o.id WHERE o.allow_id=:id"), {"id":allow_id}).mappings().fetchone()
+            if existing is not None:
+                return self._public_job(existing)
+            # A human lease may mutate the source while a plan is being approved.
+            if db.execute(sql_text("SELECT 1 FROM leases WHERE tenant_id=:tenant AND workspace_id=:workspace AND expires_at>:now"),
+                          {"tenant":ctx.tenant_id,"workspace":ws["id"],"now":self.clock()}).first():
+                raise fail("CONTROL_CONFLICT", "release.approve")
+            if row["state"] == "PENDING":
+                self._decide_allow(db, ctx, allow_id, approve=True)
+            operation = self._consume_allow(db, ctx, allow_id, operation="deploy", plan_hash=plan_hash, generation=generation)
+            return self._submit(db, ctx, ws["id"], kind="deploy", request_hash=plan_hash,
+                                idempotency_key="allow:"+allow_id, operation_id=operation["id"])
 
     def get_operation(self, ctx, operation_id):
         with self._tx(ctx, "operation.read") as db:
@@ -1229,6 +1268,15 @@ class ControlState:
                 "expires_at": lease["expires_at"] if lease else None,
             }
 
+    def get_allow(self, ctx, allow_id):
+        """Owned immutable authorization binding, including consumed/expired history."""
+        with self._tx(ctx, "allow.read") as db:
+            row=db.execute(sql_text("SELECT * FROM allows WHERE id=:id"),{"id":identifier(allow_id)}).mappings().fetchone()
+            if row is None or row["tenant_id"]!=ctx.tenant_id:
+                raise fail("CONTROL_ACCESS_DENIED","allow.read")
+            self._workspace(db,ctx,row["workspace_id"])
+            return dict(row)
+
     def allows(self, ctx, workspace_id):
         with self._tx(ctx, "allow.list") as db:
             ws = self._workspace(db, ctx, workspace_id)
@@ -1275,6 +1323,7 @@ class ControlState:
                 "control.chat.queued",
                 "control.chat.started",
                 "control.chat.result",
+                "control.chat.reconciled",
             ):
                 raise fail("CONTROL_CONFIG_INVALID", "observe")
             if job_id:

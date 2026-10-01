@@ -29,6 +29,8 @@ GATEWAY = {"name": "traefik-gateway", "namespace": "kube-system", "sectionName":
 TRAEFIK = {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}},
            "podSelector": {"matchLabels": {"app.kubernetes.io/name": "traefik"}}}
 TENANT_RE = re.compile(r"[a-z0-9]{1,20}")   # no '-': namespace t-<tenant>-<app> can never collide across tenants
+PULL_SECRET_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
+APP_IMAGE_PULL_POLICY = "Always"  # Recheck registry access; unchanged digest layers remain cacheable.
 PG_IMAGE = "ghcr.io/cloudnative-pg/postgresql:17"     # ponytail: platform images still use tags; pin separately before production.
 PSQL_IMAGE = "postgres:17"
 CURL_IMAGE = "curlimages/curl:8.16.0"
@@ -173,14 +175,24 @@ def network_policies(ns, routed_ports, egress_hosts):
     return docs
 
 
-def hook_job(name, ns, wave, image, command, env, uid=65532, res=None):
+def checked_image_pull_secret_name(value):
+    """A trusted namespace-local reference, never a credential or uploaded setting."""
+    if value is not None and (not isinstance(value, str) or not PULL_SECRET_RE.fullmatch(value)):
+        raise ValueError("image pull secret name must be a DNS label of at most 63 characters")
+    return value
+
+
+def hook_job(name, ns, wave, image, command, env, uid=65532, res=None, *, image_pull_secret_name=None,
+             image_pull_policy=None):
     return {"apiVersion": "batch/v1", "kind": "Job",
             "metadata": meta(name, ns, wave, {"argocd.argoproj.io/hook": "Sync",
                                               "argocd.argoproj.io/hook-delete-policy": "HookSucceeded"}),
             "spec": {"backoffLimit": 0, "activeDeadlineSeconds": 300, "template": {"spec": {
                 "restartPolicy": "Never", "automountServiceAccountToken": False,
+                **({"imagePullSecrets": [{"name": image_pull_secret_name}]} if image_pull_secret_name else {}),
                 "securityContext": pod_security(uid),
                 "containers": [{"name": "run", "image": image, "command": command, "env": env,
+                                **({"imagePullPolicy": image_pull_policy} if image_pull_policy else {}),
                                 "securityContext": container_security(), **({"resources": res} if res else {}),
                                 "volumeMounts": [{"name": "tmp", "mountPath": "/tmp"}]}],
                 "volumes": [{"name": "tmp", "emptyDir": {}}]}}}}
@@ -213,11 +225,12 @@ def service_env(app, svc, has_db, *, migration=False):
     return env
 
 
-def service_objects(app, ns, svc, image, has_db):
+def service_objects(app, ns, svc, image, has_db, *, image_pull_secret_name=None):
     name = f"{app}-{svc['name']}"
     health = svc.get("health", "/")
     probe = {"httpGet": {"path": health, "port": svc["port"]}}
-    container = {"name": svc["name"], "image": image, "ports": [{"containerPort": svc["port"], "name": "http"}],
+    container = {"name": svc["name"], "image": image, "imagePullPolicy": APP_IMAGE_PULL_POLICY,
+                 "ports": [{"containerPort": svc["port"], "name": "http"}],
                  "env": service_env(app, svc, has_db), "securityContext": container_security(),
                  "resources": resources(svc.get("size", "S")),
                  "startupProbe": {**probe, "periodSeconds": 2, "failureThreshold": 30},
@@ -229,6 +242,7 @@ def service_objects(app, ns, svc, image, has_db):
     labels = {"app.kubernetes.io/name": name}
     template = {"metadata": {"labels": labels}, "spec": {
         "automountServiceAccountToken": False, "securityContext": pod_security(),
+        **({"imagePullSecrets": [{"name": image_pull_secret_name}]} if image_pull_secret_name else {}),
         "containers": [container], "volumes": [{"name": "tmp", "emptyDir": {}}]}}
     replicas = svc.get("replicas", 1)
     workload = {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": meta(name, ns, 2, labels=labels),
@@ -259,9 +273,10 @@ def scaled_object(app, ns, svc):
 
 
 def render(spec, out, tenant, domain, images, suffix, storage_class, *, enable_keda=False, autoscaling_profile=None,
-           https_gateway=None):
+           https_gateway=None, image_pull_secret_name=None):
     if not TENANT_RE.fullmatch(tenant):
         raise ValueError(f"tenant must match {TENANT_RE.pattern}: {tenant!r}")
+    checked_image_pull_secret_name(image_pull_secret_name)
     quota = autoscaling_quota(spec, enable_keda, autoscaling_profile)
     if out.is_symlink() or (out.exists() and (not out.is_dir() or any(out.iterdir()))):
         raise ValueError("render output must be an empty directory; publish a fresh complete artifact")
@@ -282,13 +297,15 @@ def render(spec, out, tenant, domain, images, suffix, storage_class, *, enable_k
         files["05-grants.yaml"] = [grants_job(app, ns)]
         migrations = [hook_job(f"{app}-{s['name']}-migrate", ns, 1, images[s["name"]], s["migrate"]["command"],
                                service_env(app, s, True, migration=True),
-                               res=resources(s.get("size", "S")))
+                               res=resources(s.get("size", "S")), image_pull_secret_name=image_pull_secret_name,
+                               image_pull_policy=APP_IMAGE_PULL_POLICY)
                       for s in spec["services"] if s.get("migrate")]
         if migrations:
             files["10-migrate.yaml"] = migrations
     workloads, services, rules = [], [], []
     for s in spec["services"]:
-        w, svc = service_objects(app, ns, s, images[s["name"]], has_db)
+        w, svc = service_objects(app, ns, s, images[s["name"]], has_db,
+                                 image_pull_secret_name=image_pull_secret_name)
         workloads.append(w)
         services.append(svc)
         if s.get("route"):
@@ -348,6 +365,7 @@ def main():
     ap.add_argument("--enable-keda", action="store_true", help="trusted platform capability assertion after live readiness checks")
     ap.add_argument("--autoscaling-profile", choices=sorted(AUTOSCALING_PROFILES), help="administrator-approved capacity/budget profile")
     ap.add_argument("--https-gateway", help="trusted registered railshot-<tenant>-<app> Gateway; does not issue certificates")
+    ap.add_argument("--image-pull-secret-name", help="trusted namespace-local Secret reference; rendering does not install or verify credentials")
     ap.add_argument("--self-test", action="store_true")
     a = ap.parse_args()
     if a.self_test:
@@ -362,7 +380,7 @@ def main():
     suffix = a.suffix or hashlib.sha256(f"{a.tenant}/{spec['app']}".encode()).hexdigest()[:6]
     print(json.dumps(render(spec, Path(a.out), a.tenant, a.domain, images, suffix, a.storage_class,
                             enable_keda=a.enable_keda, autoscaling_profile=a.autoscaling_profile,
-                            https_gateway=a.https_gateway), indent=2))
+                            https_gateway=a.https_gateway, image_pull_secret_name=a.image_pull_secret_name), indent=2))
 
 
 def self_test():

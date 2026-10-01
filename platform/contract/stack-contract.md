@@ -52,7 +52,7 @@ The user never writes these. They follow the Kubernetes Pod Security Standards "
 | Namespace | `t-<tenant>-<app>` with ResourceQuota and LimitRange |
 | Network | default deny both ways (cluster baseline). Ingress: gateway to routed ports, same app. Egress: DNS, same app, `egress` hosts on TCP 443. IMDS, kube-apiserver and SMTP always denied |
 | Routing | HTTPRoute on `<app>-<random6>.<platform-domain>`, one path rule per `route`, TLS from the platform's wildcard certificate |
-| Image | GHCR, referenced by digest |
+| Image | GHCR via OCI, referenced by verified digest. App/migration Pods use `imagePullPolicy: Always` to recheck registry access while reusing local layers. Private pull uses an administrator-bound namespace Secret; rollout requires its verified installation. See [registry contract](registry.md) for implementation/acceptance status |
 | Rollout | RollingUpdate with maxUnavailable 0; smoke test on the public URL after sync; last known good (LKG) restore on failure |
 | Database (when requested) | CloudNativePG `Cluster` per app (PostgreSQL 17). The app gets `DATABASE_URL` for a DML-only runtime role; only the migration Job gets owner `DATABASE_URL` and `MIGRATION_DATABASE_URL` (same-image tool compatibility). Never a superuser |
 | Migrations (when `migrate.command` is set) | Argo CD Sync-phase hook Job at sync-wave 1 (database wave -1, app wave 2) with the app image, no retries, 5 min limit, failed Jobs kept as evidence; migrations must be idempotent because hooks rerun on every sync; the gate runs them first against an ephemeral `postgres:17` |

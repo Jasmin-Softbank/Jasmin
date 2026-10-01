@@ -28,15 +28,24 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-data "aws_caller_identity" "me" {}
-
 locals {
-  # Keep in sync with cloud-init's two optional bootstrap credential references.
-  # The control operator's auth parameter must never be readable by an app node.
-  node_parameter_arns = [
-    for name in ["gitops-read-token", "ghcr-read-token"] :
-    "arn:aws:ssm:${var.region}:${data.aws_caller_identity.me.account_id}:parameter/${var.name}/${name}"
-  ]
+  # Registry pulls use namespace-owned imagePullSecrets, never node-wide SSM auth.
+  node_parameter_arns = var.gitops_token_param == null ? [] : [
+  "arn:aws:ssm:${var.region}:${var.account_id}:parameter${var.gitops_token_param}"]
+  # The managed SSM agent policy grants GetParameter(s) on '*'. Explicitly narrow
+  # it even when no private GitOps parameter is configured.
+  node_parameter_policy = {
+    Version = "2012-10-17"
+    Statement = concat([
+      { Effect = "Deny", Action = ["ssm:GetParameters", "ssm:GetParametersByPath", "ssm:GetParameterHistory"], Resource = "*" }
+      ], var.gitops_token_param == null ? [
+      { Effect = "Deny", Action = ["ssm:GetParameter"], Resource = "*" }
+      ] : [], var.gitops_token_param == null ? [] : [
+      { Effect = "Allow", Action = ["ssm:GetParameter"], Resource = local.node_parameter_arns }
+      ], var.gitops_token_param == null ? [] : [
+      { Effect = "Deny", Action = ["ssm:GetParameter"], NotResource = local.node_parameter_arns }
+    ])
+  }
 }
 
 resource "aws_security_group" "node" {
@@ -55,7 +64,7 @@ resource "aws_security_group" "node" {
     }
   }
   dynamic "egress" {
-    for_each = [80, 443] # apt mirrors; GitHub, GHCR, SSM, AWS APIs, declared tenant hosts. AWS DNS and IMDS bypass SGs.
+    for_each = [80, 443] # apt mirrors, HTTPS registries, GitOps, SSM. AWS DNS and IMDS bypass SGs.
     content {
       description = "out ${egress.value}"
       from_port   = egress.value
@@ -80,27 +89,9 @@ resource "aws_iam_role_policy_attachment" "ssm" {
 }
 
 resource "aws_iam_role_policy" "node_params" {
-  name = "read-railshot-params"
-  role = aws_iam_role.node.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["ssm:GetParameter"]
-      Resource = local.node_parameter_arns
-      }, {
-      # AmazonSSMManagedInstanceCore also grants these reads on '*'. An additional
-      # scoped Allow cannot narrow that grant, so deny every other parameter.
-      Effect      = "Deny"
-      Action      = ["ssm:GetParameter", "ssm:GetParameters"]
-      NotResource = local.node_parameter_arns
-      }, {
-      Effect    = "Allow"
-      Action    = ["kms:Decrypt"]
-      Resource  = "*"
-      Condition = { StringEquals = { "kms:ViaService" = "ssm.${var.region}.amazonaws.com" } }
-    }]
-  })
+  name   = "read-railshot-params"
+  role   = aws_iam_role.node.id
+  policy = jsonencode(local.node_parameter_policy)
 }
 
 resource "aws_iam_instance_profile" "node" {
@@ -196,11 +187,10 @@ resource "aws_volume_attachment" "data" {
 }
 locals {
   cloud_init = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    node_config = yamlencode({
-      name               = var.name, node_name = coalesce(var.node_name, var.name), cloud_provider = "aws", region = var.region,
-      gitops_repo        = var.gitops_repo, gitops_path = var.gitops_path, gitops_revision = var.gitops_revision,
-      gitops_token_param = "/${var.name}/gitops-read-token", ghcr_token_param = "/${var.name}/ghcr-read-token"
-    })
+    node_config = yamlencode(merge({
+      name        = var.name, node_name = coalesce(var.node_name, var.name), cloud_provider = "aws", region = var.region,
+      gitops_repo = var.gitops_repo, gitops_path = var.gitops_path, gitops_revision = var.gitops_revision
+    }, var.gitops_token_param == null ? {} : { gitops_token_param = var.gitops_token_param }))
     bootstrap_manifest = jsonencode({ method = "pinned-public-git", revision = var.node_ref, image_ref = var.ami_id })
     bootstrap_script = templatefile("${path.module}/bootstrap.sh.tftpl", {
       device                     = "/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_${replace(aws_ebs_volume.data.id, "-", "")}",

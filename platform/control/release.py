@@ -40,11 +40,12 @@ def load_module(name, path):
 
 # Avoid collisions with gate.py/render.py loaded by other CLI entrypoints.
 bundle = load_module('railshot_release_bundle', PLATFORM / 'gate/bundle.py')
-render = load_module('railshot_release_render', PLATFORM / 'render/render.py').render
+renderer = load_module('railshot_release_render', PLATFORM / 'render/render.py')
+render = renderer.render
 
 TARGET_FIELDS = {'workspace_id', 'generation', 'tenant', 'cluster', 'repo_url',
                  'registry_prefix', 'tag', 'domain', 'suffix', 'storage_class', 'gitops_revision', 'publisher_backend',
-                 'https_gateway'}
+                 'https_gateway', 'image_pull_secret_name', 'registry_visibility'}
 
 
 def fail(code, phase, *, unknown=False, cause=None):
@@ -65,23 +66,48 @@ def digest(value):
 def checked_target(target):
     """Administrator registration only; the uploaded app cannot pick these fields."""
     if isinstance(target, dict):
-        target = {'publisher_backend': 'docker', 'https_gateway': None, **target}
+        target = {'publisher_backend': 'docker', 'https_gateway': None, 'image_pull_secret_name': None,
+                  'registry_visibility': 'private', **target}
     patterns = {'workspace_id': r'[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}',
                 'tenant': r'[a-z0-9]{1,20}', 'cluster': r'[a-z][a-z0-9-]{1,39}',
                 'repo_url': r'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+',
-                'registry_prefix': bundle.REPO, 'tag': bundle.TAG,
+                # Product target follows ci/railshot-deploy.yml; bundle publishing stays OCI-generic.
+                'registry_prefix': r'ghcr[.]io/[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*',
+                'tag': bundle.TAG,
                 'domain': r'(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}',
                 'suffix': r'[a-z0-9]{6,16}', 'storage_class': r'[a-z0-9][a-z0-9.-]{0,62}'}
     patterns['gitops_revision'] = r'[a-f0-9]{40}'
     if (not isinstance(target, dict) or set(target) != TARGET_FIELDS
             or type(target['generation']) is not int or target['generation'] < 1
             or target['publisher_backend'] not in {'docker', 'skopeo'}
+            or not isinstance(target['registry_visibility'], str) or target['registry_visibility'] not in {'private', 'public'}
             or (target['https_gateway'] is not None and (not isinstance(target['https_gateway'], str)
                 or not re.fullmatch(r'railshot-[a-z0-9]{1,20}-[a-z][a-z0-9-]{1,28}[a-z0-9]', target['https_gateway'])))
             or any(not isinstance(target[k], str) or not re.fullmatch(p, target[k]) for k, p in patterns.items())
-            or '/' not in target['registry_prefix'] or '.' not in target['registry_prefix'].split('/')[0]):
+            or len(target['registry_prefix']) > 220):
         raise fail('CD_CONFIG_INVALID', 'configure')
+    try:
+        renderer.checked_image_pull_secret_name(target['image_pull_secret_name'])
+    except ValueError as exc:
+        raise fail('CD_CONFIG_INVALID', 'registry.configure', cause=exc) from exc
     return dict(target)
+
+
+def registry_prerequisites(target, app):
+    """Names only. No installer or credential observation is connected yet."""
+    name = target['image_pull_secret_name']
+    if target['registry_visibility'] == 'private' and name is None:
+        return [{'kind': 'image_pull_secret', 'namespace': f"t-{target['tenant']}-{app}", 'name': None,
+                 'status': 'BLOCKED', 'reason': 'registry_pull_secret_not_registered'}]
+    return ([{'kind': 'image_pull_secret', 'namespace': f"t-{target['tenant']}-{app}", 'name': name,
+              'status': 'BLOCKED', 'reason': 'trusted_secret_installer_not_connected'}] if name else [])
+
+
+def require_registry_prerequisites(plan):
+    # The observer deliberately has no Secret access. A configured name or a
+    # publisher login proves neither installation nor pull permission on nodes.
+    if registry_prerequisites(checked_target(plan['target']), plan['app']):
+        raise fail('CONTROL_NOT_READY', 'registry.pull_secret.prerequisite')
 
 
 def prepare_release(bundle_dir, target):
@@ -102,7 +128,8 @@ def prepare_release(bundle_dir, target):
                           for name, value in manifest['images'].items()}
         with tempfile.TemporaryDirectory(prefix='railshot-release-plan-') as tmp:
             preview = render(spec, Path(tmp) / 'app', target['tenant'], target['domain'], preview_images,
-                             target['suffix'], target['storage_class'], https_gateway=target['https_gateway'])
+                             target['suffix'], target['storage_class'], https_gateway=target['https_gateway'],
+                             image_pull_secret_name=target['image_pull_secret_name'])
         body = {'version': 1, 'operation': 'deploy', 'target': target,
                 'manifest_sha256': bundle.file_hash(Path(bundle_dir) / 'manifest.json'),
                 'source_sha256': manifest['source_sha256'], 'images': manifest['images'],
@@ -113,6 +140,7 @@ def prepare_release(bundle_dir, target):
                 'release_sha256': bundle.file_hash(Path(__file__)),
                 'observer_sha256': bundle.file_hash(PLATFORM / 'control/deployment.py'),
                 'deployment_url': preview['url'], 'probe_url': preview['probe_url'],
+                'prerequisites': registry_prerequisites(target, spec['app']),
                 'external_access': 'NOT_VERIFIED', 'transport': 'https' if target['https_gateway'] else 'http'}
         if len(body['host']) > 253 or len(body['host'].split('.')[0]) > 63:
             raise fail('CD_CONFIG_INVALID', 'hostname')
@@ -228,6 +256,7 @@ def execute_release(plan, bundle_dir, operation, *, work_dir, observer, runtime_
     if current != plan:
         raise fail('STATE_BINDING_MISMATCH', 'authorize')
     check_operation(plan, operation)
+    require_registry_prerequisites(plan)
     if runtime_observer is None or not plan['target']['https_gateway']:
         raise fail('CONTROL_NOT_READY', 'runtime.configure')
     root = private_directory(work_dir)
@@ -266,7 +295,8 @@ def execute_release(plan, bundle_dir, operation, *, work_dir, observer, runtime_
             with tempfile.TemporaryDirectory(prefix='render-', dir=root) as tmp:
                 output = Path(tmp) / 'app'
                 meta = render(spec, output, target['tenant'], target['domain'], images,
-                              target['suffix'], target['storage_class'], https_gateway=target['https_gateway'])
+                              target['suffix'], target['storage_class'], https_gateway=target['https_gateway'],
+                              image_pull_secret_name=target['image_pull_secret_name'])
                 files = {p.name: p.read_text() for p in output.iterdir()}
             durable_write(root / 'rendered.json', canonical(files))
             receipt['rendered_files_sha256'] = digest(files)
@@ -310,9 +340,10 @@ def prepare_rollback(lkg, target):
                 and lkg['external']['status'] == 'PASS' and lkg['runtime']['status'] == 'PASS')
         original = lkg['plan']
         require(original['plan_hash'] == digest({k: v for k, v in original.items() if k != 'plan_hash'}))
+        original_target = checked_target(original['target'])
         # Generation and base GitOps revision must be refreshed by the supervisor.
         for key in TARGET_FIELDS - {'generation', 'gitops_revision', 'tag'}:
-            require(original['target'][key] == target[key])
+            require(original_target[key] == target[key])
         require(lkg['spec']['app'] == original['app'] and not lkg['spec'].get('resources')
                 and not any(s.get('secrets') or s.get('autoscaling') for s in lkg['spec']['services']))
         require(all(re.fullmatch(r'(?:[0-9]{2}-[a-z0-9-]+\.yaml|meta\.json)', name)
@@ -328,6 +359,7 @@ def prepare_rollback(lkg, target):
                 'release_sha256': bundle.file_hash(Path(__file__)),
                 'observer_sha256': bundle.file_hash(PLATFORM / 'control/deployment.py'),
                 'deployment_url': original['deployment_url'], 'probe_url': original['probe_url'],
+                'prerequisites': registry_prerequisites(target, original['app']),
                 'scope': 'stateless-app-manifests-only', 'database_restore': 'NOT_PERFORMED'}
         return {**body, 'plan_hash': digest(body)}
     except OperationError:
@@ -343,6 +375,7 @@ def execute_rollback(plan, lkg, operation, *, work_dir, observer, runtime_observ
             or type(timeout) is not int or not 1 <= timeout <= 900):
         raise fail('STATE_BINDING_MISMATCH', 'rollback.authorize')
     check_operation(plan, operation)
+    require_registry_prerequisites(plan)
     root = private_directory(work_dir)
     lock = os.open(root / '.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
     try:

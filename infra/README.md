@@ -22,7 +22,7 @@
 }
 ```
 
-위 예시는 형식만 보여 준다. 선택한 module의 `.tfvars.example`/`variables.tf`를 보고 image·GitOps·bootstrap 등 **모든 필수 입력**을 `variables`에 채워야 한다. 변수는 공급자별 사전을 그대로 넘긴다. AWS `instance_type`, GCP `machine_type`, Azure `vm_size`를 vCPU나 메모리에서 자동 환산하지 않는다. GCP/Azure `variables.target_id`는 최상위 alias와 같아야 한다. AWS module은 아직 `target_id` 입력과 표준 `node_descriptor` output이 없으며, 이 CLI가 지원 동등성을 만들어 주지는 않는다.
+위 예시는 형식만 보여 준다. 선택한 module의 `.tfvars.example`/`variables.tf`를 보고 image·GitOps·bootstrap 등 **모든 필수 입력**을 `variables`에 채워야 한다. 변수는 공급자별 사전을 그대로 넘긴다. AWS `instance_type`, GCP `machine_type`, Azure `vm_size`를 vCPU나 메모리에서 자동 환산하지 않는다. AWS/GCP/Azure `variables.target_id`는 최상위 alias와 같아야 한다. 각 module은 `node_descriptor`를 반환하지만 실제 guest·앱 readiness와 공급자 기능 동등성을 보장하지 않는다.
 
 ```bash
 python3 platform/infra/provision.py plan \
@@ -52,3 +52,13 @@ python3 -m unittest discover -s platform/infra -p test_provision.py
 ```
 
 스펙시트·비용 집계·수동 용량 변경 절차는 [platform/infra/README.md](../platform/infra/README.md), ownership·승인·drain 계약은 [infra-interface.md](../platform/contract/infra-interface.md)를 따른다.
+
+## 앱 이미지 pull 인증과 기존 노드 이전
+
+공통 `infra/ansible/node.yml`은 registry credential을 읽거나 `/etc/rancher/k3s/registries.yaml`을 만들지 않는다. 앱은 관리자가 해당 namespace에 마련한 pull-only `kubernetes.io/dockerconfigjson` Secret을 배포 manifest의 `imagePullSecrets`로 참조한다. Registry 주소·Secret 이름·권한 범위는 신뢰된 release target의 입력이며, 사용자 업로드·Terraform 변수·cloud-init에 token 값을 넣지 않는다. 이 bootstrap 변경 자체가 Secret의 발급·회전·renderer 연결을 완료한 것은 아니다.
+
+기존 `/etc/railshot/node.yml`의 `ghcr_token_param`은 retired 설정이므로 새 playbook이 첫 단계에서 거부한다. 관리자는 기존 workload의 image pull 의존성과 대체 namespace Secret을 확인한 뒤 해당 참조와 노드 전체 credential을 별도 유지보수로 이전해야 한다. Bootstrap은 기존 credential 파일을 삭제·회전하거나 노드를 재시작하지 않는다. 기존 Terraform state와 실제 노드는 이번 소스 변경만으로 바뀌지 않는다.
+
+AWS 앱 module의 `gitops_token_param`은 **registry 인증과 별개인** 비공개 GitOps HTTPS 읽기용 기존 SSM parameter 경로다. 기본 `null`이면 공개 저장소를 사용하고 모든 Parameter Store 읽기를 명시적으로 차단한다. `/railshot/gitops-read-token`처럼 정확한 경로를 지정하면 그 parameter의 `GetParameter`만 허용하며, batch/path/history 읽기와 다른 parameter 읽기는 차단한다. 기존 private GitOps 사용자는 새 plan 전에 기존 경로를 명시해야 하며, 자동으로 이전 경로를 추정하지 않는다. 광역 `kms:Decrypt` 권한은 제거했다. 기본 `aws/ssm` key 사용만 이 module의 범위이며, 고객 관리 KMS key는 별도 키 정책·정확한 key 권한 검토가 필요하다. [AWS Parameter Store/KMS 권한](https://docs.aws.amazon.com/systems-manager/latest/userguide/secure-string-parameter-kms-encryption.html)
+
+로컬 검증: `python3 -m unittest discover -s infra/ansible -p test_node_credentials.py`, `python3 -m unittest discover -s infra/terraform/aws -p test_bootstrap.py`, `python3 -m unittest discover -s gitops-template -p test_network_policy.py`. PyYAML·Terraform·Ansible이 필요하며, 실제 cloud 변경이나 credential 조회 없이 admission task와 Terraform 정책을 검증한다.

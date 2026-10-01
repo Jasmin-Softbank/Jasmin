@@ -9,6 +9,25 @@
 - 원감사 단계는 수집과 재현·기록만 수행했다. 후속 사용자 승인으로 코드 수정과 별도 GCP CI VM의 실제 검증을 진행했다. 원감사 증거는 덮어쓰지 않는다.
 - 관리자 전용 증거 위치: `~/.local/state/railshot/audits/2026-10-01/gap-review-182949/`. `source-snapshot.json`에 파일 hash·branch·기준 commit·시각을 보존한다. 해당 hash는 서명이나 호스트 관리자에 대한 변조 방지 보장은 아니다.
 
+## GHCR 고정·캐시 경계 — 2026-10-01 22:25 KST
+
+- **결정 대체:** 사용자의 후속 지시로 GHCR(`ghcr.io`)을 제품 레지스트리로 고정했다. 아래 22:03 Harbor 검토는 당시 기록이며 현재 결정이 아니다. Harbor 서버·자격을 생성한 적은 없다. OCI 공통 publisher는 유지하고 GitHub Actions 인증은 package 권한을 가진 `GITHUB_TOKEN`으로 통일했다.
+- **GAP-045 (P2 · MISSING · OPEN, 발견 22:15):** CI의 BuildKit named volume은 캐시를 유지하지만 `--load` 이미지와 job bundle까지 포괄하는 디스크 보존량/정리 정책은 없다. builder/volume도 VM 단위여서 tenant 재할당 전 소유권·초기화 검증이 필요하다. Q 의존성 및 Trivy DB는 run별 임시 저장소다. [캐시 계약](../contract/registry.md)에 범위·수명·cold/warm 인수 기준을 등록했다. 실제 무차별 prune이나 cache 서비스 추가는 하지 않았다.
+- **GAP-046 (P1 · DEFECT · CLOSED_LOCAL, 발견 22:10 / 검증 22:18):** 22:03의 private release 차단은 Secret 이름이 등록된 경우만 해당했다. 이름 누락이 public 취급되던 분기와 UI Allow 소비 가능성을 교차 리뷰로 확인했다. trusted target은 이제 private 기본값이며, 공통 prerequisite 검사를 서버의 Allow 소비/job 생성 전 및 executor 시작 전에 재사용한다. 미등록·installer 미연결 모두 409로 차단하고 Allow PENDING/queue 0을 유지한다. 이미 소비된 요청의 조회는 보존한다. renderer16/release20/HTTP36 회귀 및 격리 Chrome의 한국어 사유·Allow 비활성·거절 활성·JS 오류 0을 확인했다. 이 CLOSED_LOCAL은 namespace Secret installer 구현 또는 private 배포 인수가 아니다.
+- **GAP-047 (P2 · DRIFT · CLOSED_LOCAL, 발견 22:24 / 검증 22:25):** 제품 release target만 GHCR 이외 registry를 허용해 workflow와 달랐다. 공통 OCI publisher는 유지하고 제품 `checked_target`의 namespace/길이를 workflow와 맞췄다. GHCR 정상/중첩 경로와 다른 CSP·인증 포함·traversal·대문자·길이 초과 거부를 검증했다. release21/HTTP36/workflow7 PASS이며 실제 게시 결과가 아니다.
+- **캐시 구현/실험 구별:** 앱 Deployment와 같은 앱 이미지의 migration Job은 digest + `imagePullPolicy: Always`로 registry 확인과 노드 layer 재사용을 함께 사용한다. GHCR remote build cache는 아직 연결하지 않았다. 검증 이미지의 inline metadata 전달부터 실험하며 `mode=max`용 별도 cache artifact는 필요성이 측정될 때만 추가한다. GHCR 게시/private cold pull/원격 cache hit/성능 수치는 **NOT_RUN**이다.
+- **운영 readback:** GCP CI VM의 실제 상태 TERMINATED와 22:07:01 KST 종료 시각을 확인했다. 마지막 PASS bundle의 파일/hash를 로컬에 보존했다. timer가 제품 drain/checkpoint와 통합됐다는 뜻은 아니다. 비용 절감을 위해 자동 재시작하지 않았다.
+- 근거: private `gap-review-182949/allow-prerequisite-ui/verification-final.json`, `gap-remediation-190434/registry-workflow-ghcr-local/result.json`. GitOps 404와 namespace Secret 설치 경계는 여전히 미해결이다.
+
+## 레지스트리 결정·대화 복구 — 2026-10-01 22:03 KST
+
+- **Harbor/OCI 결정:** 제품 레지스트리를 CSP와 분리했다. [레지스트리 계약](../contract/registry.md)에 소유권·자격·수명·이전·인수 조건을 고정한다. ECR 후속 실행은 0회이며 Harbor 서버는 아직 미설치다. 공통 publisher를 재사용하고 앱과 migration의 pull Secret 참조를 trusted target/plan에 묶었다. 안전한 namespace Secret 설치 경계가 없어 private release는 writer/publish 전에 명시적으로 차단한다. 구현과 실제 push/pull을 구별한다.
+- **GAP-042 CLOSED(정상 종료/기존 결과 조정 범위):** 기존 message `ce8be016…`의 원격 request/result/session hash를 대조한 뒤 실제 UI의 기존 결과 확인으로 PASS 답변을 복원했다. 원 UNKNOWN 이벤트는 남고 별도 reconciliation receipt `448e3d8f…`를 추가했다. 해당 요청 dispatch는 1회이며 모델 재호출은 0회다. 새 제출을 막고 진행 중 bounded transport 결과를 기다리는 정상 종료/SIGTERM 경로와 chat21/HTTP34 회귀를 확인했다. 강제 종료나 근거 없는 UNKNOWN의 자동 복구까지 뜻하지 않는다.
+- **구성도 native PASS:** 새 message `8a883fdd…`는 실제 Codex `gpt-6.1-sol` 응답 PASS. 구조화된 설명용 DRAFT 12개 노드·12개 연결을 실제 SVG로 표시했고 입력 가능·브라우저 JS 오류 0을 확인했다. 관측 상태와 계약상 연결을 구분하며 인프라 변경은 0이다.
+- **GAP-044 CLOSED(발견 21:55 / 수정 검증 22:00):** 이전 페이지 추가 시 읽던 메시지가 약 614px 이동했다. 메시지 `content-visibility:auto`의 추정 높이와 수동 scroll 보정 충돌을 재현하고 해당 CSS 한 줄을 제거했다. 격리된 실제 HTTP/SQLite/SSE/Chrome에서 이전 페이지 및 동시 새 대화 도착 후 앵커 변화 -0.047px/+0.195px, 112개 unique와 1–56 Q/A 순서, 종료 표시 PASS. 응답 생성은 synthetic이며 모델/클라우드 검증으로 세지 않는다.
+- **GAP-043 OPEN:** Skopeo 실패의 bounded/redacted private 진단과 진단 업로드 실패의 typed UNKNOWN을 구현했다(bundle18/CodeBuild10 로컬 PASS). 기존 ECR 실패 원인은 유실된 채 유지하며 새 진단 경로의 native 실행은 아직 하지 않았다.
+- 증거: private `gap-remediation-190434/chat-recovery-topology-native-acceptance.json`, `console-sdk-topology-native.png`, `history-ui-native-report.md`, `history-ui-native-r3/dom-results.json` 및 `gap-review-182949/harbor-pull-secret-local.md`. 이전 기록의 당시 OPEN/진행 중 표기를 지우지 않는다.
+
 ## AWS 교차 검증 — 2026-10-01 21:45 KST
 
 - 신규 AWS CI VM에서 GCP와 동일한 Ansible·worker·gate를 사용한 native 실행 `5860d0f2-e570-412d-9ca5-9b6e8d96b21a`가 81.3초, L0/L1/Q/L2/L4/L3 모두 PASS다. 이 실행의 source `b63125ef…`, bundle manifest `3f5fd70b3850861c2b234be5edeba4998dc19d800caa8a9466169980aa285792`를 독립 readback했다. 전체 스택 matrix를 AWS에서 재실행했다는 뜻은 아니다.

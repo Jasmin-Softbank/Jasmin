@@ -19,19 +19,20 @@
   </div></div>
   <div class="nv-composer-area"><label class="nv-caption" for="build-root" hidden data-root-label>검사할 프로젝트</label><select class="nv-select" id="build-root" hidden><option value="">자동 선택</option></select>
     <form id="chat-form" class="nv-chat-composer"><label class="nv-sr-only" for="chat-message">누블렛에게 메시지</label><textarea id="chat-message" rows="2" maxlength="8000" placeholder="누블렛에게 부탁하기…" disabled></textarea><button type="submit" class="nv-send" aria-label="메시지 보내기" disabled>↑</button></form>
-    <div class="nv-actions"><button type="button" data-action="upload">＋ 폴더 올리기</button><button type="button" data-action="prepare" disabled>빌드 구성 확인</button><button type="button" class="nv-primary" data-action="ci" disabled>CI 실행</button></div>
+    <div class="nv-actions"><button type="button" data-action="upload">＋ 폴더 올리기</button><button type="button" data-action="prepare" disabled>빌드 구성 확인</button><button type="button" class="nv-primary" data-action="ci" disabled>CI 실행</button><button type="button" data-action="deploy" disabled>배포 계획 확인</button></div>
     <input type="file" id="upload" class="nv-hidden-input" webkitdirectory multiple aria-label="프로젝트 폴더 선택">
     <p class="nv-caption" data-chat-status role="status">에이전트 연결 확인 중</p>
+    <button type="button" data-action="reconcile" hidden>기존 실행 결과 확인</button>
     <p class="nv-caption" data-action-note>코드를 올리면 실제 러너에서 빌드 구성과 검사를 확인합니다.</p>
   </div>
 </section>
 <div class="nv-computer-clip" inert aria-hidden="true"><section class="nv-computer" aria-label="VM 작업 화면">
   <div class="nv-computer-head"><div><p>누블렛의 컴퓨터</p><span class="nv-caption" data-machine>아직 관측된 VM이 없어요</span></div><button type="button" class="nv-close" data-action="close" aria-label="컴퓨터 닫고 전체 대화로 돌아가기">×</button></div>
   <div class="nv-window"><div class="nv-address"><span data-address>실행 로그</span><span class="nv-demo-tag" data-live-status>연결 확인 중</span></div>
-    <section class="nv-ci-panel" data-view="ci" hidden aria-label="CI 실행 상세"><div class="nv-ci-run"><label for="ci-run">CI 실행</label><select id="ci-run"></select></div><p data-ci-summary role="status">CI 실행을 기다리고 있어요.</p><progress data-ci-progress max="100" value="0" aria-label="완료된 CI 단계 비율"></progress><ol data-ci-steps class="nv-ci-steps"></ol><p class="nv-caption" data-ci-note></p></section>
+    <section class="nv-ci-panel" data-view="ci" hidden aria-label="CI 실행 상세"><div class="nv-ci-run"><label for="ci-run">CI 실행</label><select id="ci-run"></select></div><p data-ci-summary role="status">CI 실행을 기다리고 있어요.</p><progress data-ci-progress max="100" value="0" aria-label="완료된 CI 단계 비율"></progress><ol data-ci-steps class="nv-ci-steps"></ol><details data-ci-common hidden><summary>실행 공통 로그</summary><pre class="nv-step-log"></pre></details><p class="nv-caption" data-ci-note></p></section>
     <pre class="nv-terminal" data-view="terminal" tabindex="0" aria-label="VM 실제 실행 로그">실행 로그를 기다리고 있어요.</pre>
     <div class="nv-app" data-view="files" hidden><div><h3>프로젝트 파일</h3><p class="nv-caption">서버가 받은 파일과 해시</p></div><ul class="nv-files" data-files></ul></div>
-    <div class="nv-app" data-view="browser" hidden><h3>배포된 서비스</h3><p class="nv-caption">확인된 배포 주소가 아직 없어요.</p><a data-service-link target="_blank" rel="noopener noreferrer" hidden>서비스 열기 ↗</a></div>
+    <div class="nv-app" data-view="browser" hidden><h3>배포된 서비스</h3><p class="nv-caption" data-service-status>확인된 배포 주소가 아직 없어요.</p><a data-service-link target="_blank" rel="noopener noreferrer" hidden>서비스 열기 ↗</a></div>
   </div>
   <form class="nv-compose" id="terminal-form" hidden><label for="terminal-command" class="nv-caption">$</label><input id="terminal-command" autocomplete="off" spellcheck="false" maxlength="4096" placeholder="VM에서 실행할 명령" aria-label="VM 명령"><button type="submit">실행</button></form>
   <nav class="nv-dock" aria-label="컴퓨터 앱 전환"><button type="button" data-tab="ci" aria-pressed="false">◷ CI</button><button type="button" data-tab="terminal" aria-pressed="true">⌘ 터미널</button><button type="button" data-tab="files" aria-pressed="false">▤ 파일</button><button type="button" data-tab="browser" aria-pressed="false" disabled>◎ 브라우저</button></nav>

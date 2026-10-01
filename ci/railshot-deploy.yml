@@ -7,6 +7,13 @@
 #        AGENT_PROVIDER (codex | claude), REPAIR_SCOPE (packaging | source), QUALITY_NETWORK,
 #        GITOPS_CLUSTER (registered cluster alias), STORAGE_CLASS (installed class on that cluster).
 #        RAILSHOT_CD_RUNNER_GROUP (protected private-workflow-only group), GITOPS_REPO_URL (exact Argo source URL).
+# Release environment owns REGISTRY_PREFIX (ghcr.io/owner[/path]) and REGISTRY_VISIBILITY (default private).
+# GHCR publishing uses the workflow GITHUB_TOKEN; no separate registry PAT/secrets are required.
+# GITOPS_TOKEN and agent credentials remain separate; uploads cannot select the registry or visibility.
+# Private mode is BLOCKED before registry login/publish/GitOps because the trusted pull-Secret installer is unconnected.
+# Explicit public mode is only for already-public GHCR packages; it does not change package visibility.
+# Every published digest must also pass an anonymous registry read before rendered artifacts can reach GitOps.
+# VM publishing keeps its separate trusted authfile contract; this template does not provision cluster pull credentials.
 # The dedicated CD worker has kubectl/get-only credentials for its registered local cluster.
 # It polls GitHub outbound; it is NOT the user CI VM, has no Docker socket/root kubeconfig, and runs no uploaded code.
 # Registration/group protection and credential rotation are operator prerequisites, not implemented by this template.
@@ -141,6 +148,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions: {contents: read, packages: write}
+    env:
+      REGISTRY_PREFIX: ${{ vars.REGISTRY_PREFIX }}
+      REGISTRY_VISIBILITY: ${{ vars.REGISTRY_VISIBILITY || 'private' }}
+      DOCKER_CONFIG: ${{ runner.temp }}/railshot-registry-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       rendered_id: ${{ steps.rendered.outputs.artifact-id }}
     steps:
@@ -155,6 +166,14 @@ jobs:
           [[ "$DOMAIN" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || exit 1
           [[ "$GITOPS_CLUSTER" =~ ^[a-z][a-z0-9-]{1,39}$ ]] || exit 1
           [[ "$STORAGE_CLASS" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || exit 1
+          # Only the administrator's GHCR namespace is supported.
+          [[ "$REGISTRY_PREFIX" =~ ^ghcr[.]io/[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*$ ]] || exit 1
+          [[ ${#REGISTRY_PREFIX} -le 220 ]] || exit 1
+          case "${REGISTRY_VISIBILITY:-private}" in
+            public) ;;
+            private) echo "BLOCKED: trusted imagePullSecret installer is not connected; private GHCR release cannot publish or change GitOps" >&2; exit 1 ;;
+            *) echo "BLOCKED: REGISTRY_VISIBILITY must be private or explicitly public" >&2; exit 1 ;;
+          esac
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -164,26 +183,53 @@ jobs:
       - name: Validate inputs
         run: '[[ "$TENANT" =~ ^[a-z0-9]{1,20}$ && "$APP" =~ ^[a-z][a-z0-9-]{1,28}[a-z0-9]$ ]] || { echo "invalid tenant/app"; exit 1; }'
       - name: Log in to GHCR
-        env: {TOKEN: "${{ secrets.GITHUB_TOKEN }}"}
-        run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$GHCR_TOKEN" && test -n "$GITHUB_ACTOR"
+          umask 077
+          mkdir -m 700 "$DOCKER_CONFIG"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with: {python-version: "3.13"}
       - name: Verify bundle, publish tested images, render
         env:
-          OWNER: ${{ github.repository_owner }}
           DOMAIN: ${{ vars.RAILSHOT_DOMAIN }}
         run: |
           set -euo pipefail
           pip install -q pyyaml jsonschema
           python -c 'import os,yaml; s=yaml.safe_load(open("release-bundle/jasmin.yaml")); assert s["app"]==os.environ["APP"], "APP/spec.app mismatch"'
           python .railshot/platform/gate/bundle.py publish release-bundle \
-            "ghcr.io/${OWNER,,}/${TENANT}-${APP}" "${GITHUB_SHA::12}" --output images.json
+            "$REGISTRY_PREFIX/${TENANT}-${APP}" "${GITHUB_SHA::12}" --output images.json
           images=()
           while IFS=$'\t' read -r svc digest; do images+=(--image "$svc=$digest"); done < <(jq -r 'to_entries[] | [.key,.value] | @tsv' images.json)
           scaling=()
           if [ "$KEDA_ENABLED" = true ]; then scaling+=(--enable-keda --autoscaling-profile "$AUTOSCALING_PROFILE"); fi
           python .railshot/platform/render/render.py \
             release-bundle/jasmin.yaml rendered --tenant "$TENANT" --domain "$DOMAIN" --storage-class "$STORAGE_CLASS" "${images[@]}" "${scaling[@]}" > render.json
+      - name: Require anonymous access to published digests
+        run: |
+          set -euo pipefail
+          anonymous_config=$(mktemp -d "$RUNNER_TEMP/railshot-anonymous.XXXXXX")
+          trap 'rm -rf -- "$anonymous_config"' EXIT
+          # An explicit credential-free entry prevents Docker's default native-store discovery.
+          printf '%s\n' '{"auths":{"ghcr.io":{}}}' > "$anonymous_config/config.json"
+          python3 - <<'PY' > "$anonymous_config/images"
+          import json, os, re
+          images = json.load(open('images.json'))
+          assert isinstance(images, dict) and images, 'published digest evidence required'
+          for ref in images.values():
+              assert isinstance(ref, str) and ref.startswith(os.environ['REGISTRY_PREFIX'] + '/') and re.fullmatch(r'ghcr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}', ref), 'bound GHCR digest required'
+              print(ref)
+          PY
+          while IFS= read -r digest; do
+            # manifest inspect queries the registry, with no login config or credential helper.
+            DOCKER_AUTH_CONFIG= DOCKER_CONFIG="$anonymous_config" docker manifest inspect "$digest" > /dev/null || {
+              echo "BLOCKED: published digest is not anonymously readable; GitOps remains unchanged" >&2
+              exit 1
+            }
+          done < "$anonymous_config/images"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         id: rendered
         with:
@@ -192,6 +238,9 @@ jobs:
             rendered
             render.json
             images.json
+      - name: Remove ephemeral registry credentials
+        if: always()
+        run: 'rm -rf -- "$DOCKER_CONFIG"'
 
   gitops:
     needs: release

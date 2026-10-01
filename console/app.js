@@ -30,7 +30,7 @@
       method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: body === undefined ? {} : {'Content-Type': 'application/json'},
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(path === '/api/upload' ? 60000 : 15000),
+      signal: AbortSignal.timeout(path === '/api/releases/plan' ? 125000 : path === '/api/upload' ? 60000 : 15000),
     });
     let value;
     try { value = await response.json(); }
@@ -82,6 +82,9 @@
       detail.append(node('pre',logs || (step.evidence==='NOT_OBSERVED' ? '이 단계의 실행이 아직 관측되지 않았어요.' : '이 단계에 기록된 출력이 없어요.'),'nv-step-log'));
       li.append(detail);list.append(li);
     });
+    const commonLogs=(ci?.logs || []).filter(row=>!(ci.steps || []).some(step=>row.phase===step.id || row.phase?.startsWith(step.id+'.')));
+    const common=find('[data-ci-common]'); common.hidden=!commonLogs.length;
+    common.querySelector('pre').textContent=commonLogs.map(row=>row.text).join('');
   }
   async function refreshCIRun() {
     if (!ciSelection || layout.view!=='ci' || !connected) return;
@@ -146,6 +149,8 @@
     find('#chat-message').disabled = !connected || !chat.configured || Boolean(chat.error) || chatPending;
     find('#chat-form button').disabled = !connected || !chat.configured || Boolean(chat.error) || chatPending;
     find('[data-chat-status]').textContent = chat.error ? `${chat.error.code} · ${chat.error.summary || '응답 기록을 확인해야 해요.'}` : !chat.configured ? '에이전트 연결을 준비하고 있어요.' : chat.pending ? '누블렛이 답변을 준비하고 있어요. CI 작업은 계속 진행됩니다.' : `${chat.model || 'Agent SDK'} · Enter로 보내기, Shift+Enter로 줄바꿈`;
+    const reconcile=find('[data-action="reconcile"]');reconcile.hidden=!chat.reconciliation_ids?.length;
+    reconcile.disabled=pending || !connected;reconcile.title='보존된 원격 실행 근거를 대조합니다. 모델을 다시 호출하지 않습니다.';
     find('[data-workspace]').textContent = ws.name || ws.id || '작업 공간';
     find('[data-resource]').textContent = connection.hostname || ws.resource_id || 'VM 연결 확인 중';
     find('[data-machine]').textContent = connection.hostname ? `${connection.hostname} · ${ready ? '연결됨' : '관측 대기'}` : 'VM을 아직 확인하지 못했어요';
@@ -172,6 +177,10 @@
       li.append(node('small', `#${job.id.slice(0,8)}`)); historyList.append(li);
     });
     for (const kind of ['prepare', 'ci']) find(`[data-action="${kind}"]`).disabled = pending || !connected || !caps[kind] || !state.files?.length || active || uncertain || human;
+    const latestCI=jobs.find(job=>job.kind==='ci');
+    const deploy=find('[data-action="deploy"]');
+    deploy.disabled=pending || !connected || !caps.deploy || latestCI?.status!=='PASS' || !latestCI?.same_upload || active || uncertain || human;
+    deploy.title=!caps.deploy?'배포 실행기 연결을 준비하고 있어요.':latestCI?.status!=='PASS'?'현재 업로드의 CI 통과 후 확인할 수 있어요.':'이미지와 대상 계획을 확인한 뒤 Allow로 승인합니다.';
     find('[data-action="upload"]').disabled = pending || !connected || active || uncertain || human;
     find('[data-action-note]').textContent = human ? '수동 제어를 반환하면 검사를 실행할 수 있어요.' : active ? '실제 러너에서 처리 중이에요. 화면을 열어 로그를 확인해 주세요.' : ready && !caps.ci ? `VM은 연결됐지만 CI 환경 검증을 통과하지 못했어요.${connection.readiness_error?.code ? ' '+connection.readiness_error.code : ''}` : '빌드 구성 확인은 준비 검사이며, CI 통과와 구분해 표시합니다.';
     const control = find('[data-action="control"]');
@@ -189,11 +198,27 @@
     const approvals = find('[data-approval-list]'); approvals.replaceChildren();
     (state.allows || []).filter(allow => allow.state === 'PENDING').forEach(allow => {
       const card = node('div', '', 'nv-approval');
-      card.append(node('div', `${allow.operation} 승인`, 'nv-approval-title'), node('p', `계획 ${allow.plan_hash}`, 'nv-caption'));
+      const plan=allow.plan;
+      const prerequisites=(plan?.prerequisites || []).filter(item=>item.status!=='PASS');
+      card.append(node('div', `${kinds[allow.operation] || allow.operation} 승인`, 'nv-approval-title'));
+      if (plan) {
+        card.append(node('p',`${plan.app} → ${plan.host}`));
+        const detail=node('details','');detail.append(node('summary','배포할 이미지와 대상 확인'));
+        const facts=node('ul','');
+        for (const text of [`대상: ${plan.target.cluster} · ${plan.target.workspace_id}`,`CI 실행: #${allow.ci_job_id}`,`소스: ${plan.source_sha256}`,`GitOps 경로: ${plan.gitops_path}`,
+          ...Object.entries(plan.images || {}).map(([name,image])=>`${name}: ${image.id || image}`),`계획: ${allow.plan_hash}`]) facts.append(node('li',text));
+        detail.append(facts);card.append(detail);
+      } else card.append(node('p',`계획 ${allow.plan_hash}`,'nv-caption'));
+      prerequisites.forEach(item=>card.append(node('p',item.reason==='trusted_secret_installer_not_connected'
+        ? `레지스트리 인증 준비가 필요해요. ${item.namespace}의 ${item.name} Secret을 설치·검증하는 경로가 아직 연결되지 않았어요.`
+        : item.reason==='registry_pull_secret_not_registered' ? '비공개 레지스트리에서 이미지를 가져올 인증 참조가 등록되지 않았어요.'
+        : '배포에 필요한 사전 조건이 아직 확인되지 않았어요.','nv-caption')));
+      const expired=Number(allow.expires_at)*1000<=Date.now();
+      card.append(node('p',expired?'승인이 만료됐어요. 새 배포 계획을 확인해 주세요.':`승인 만료: ${stamp(allow.expires_at)}`,'nv-caption'));
       const actions = node('div', '', 'nv-actions');
       for (const [text, approve] of [['Allow', true], ['거절', false]]) {
         const button = node('button', text, approve ? 'nv-primary' : '');
-        button.type = 'button'; button.disabled = pending || !connected;
+        button.type = 'button'; button.disabled = pending || !connected || (approve && (expired || prerequisites.length>0));
         button.addEventListener('click', () => mutate(() => api(`/api/allows/${encodeURIComponent(allow.id)}`, {approve})));
         actions.append(button);
       }
@@ -202,10 +227,11 @@
     // A URL is displayed only after the backend has observed the deployment.
     const link = find('[data-service-link]');
     let serviceURL = null;
-    try { const url = new URL(state.deployment_url); if (['https:', 'http:'].includes(url.protocol)) serviceURL = url; } catch { /* absent URL is not a deployment */ }
+    try { const url = new URL(state.deployment?.receipt?.deployment_url); if (url.protocol==='https:') serviceURL = url; } catch { /* absent URL is not a deployment */ }
     link.hidden = !caps.browser || !serviceURL;
     find('[data-tab="browser"]').disabled = link.hidden;
     if (!link.hidden) link.href = serviceURL.href;
+    find('[data-service-status]').textContent=link.hidden?'확인된 배포 주소가 아직 없어요.':`Argo 동기화·Pod 이미지·외부 HTTPS 확인 · ${serviceURL.hostname}`;
     const roots = state.build_roots || [];
     const select = find('#build-root');
     if (JSON.stringify(roots) !== select.dataset.roots) {
@@ -329,6 +355,8 @@
       if (action==='ci') {ciSelection=job.id;ciRun=null;layout.open=true;layout.view='ci';layout.menu=false;renderLayout();}
     });
     if (action === 'control') mutate(() => api('/api/control', {action: snapshot?.control?.owner === 'human' ? 'release' : 'acquire'}));
+    if (action === 'deploy') mutate(()=>api('/api/releases/plan',{ci_job_id:snapshot.jobs.find(job=>job.kind==='ci').id}));
+    if (action === 'reconcile') mutate(()=>api(`/api/chat/${encodeURIComponent(snapshot.chat.reconciliation_ids[0])}/reconcile`,{}));
   });
   root.addEventListener('keydown', event => {
     if (event.key === 'Escape' && layout.menu) { layout.menu = false; renderLayout(); find('[data-action="pet"]').focus(); }

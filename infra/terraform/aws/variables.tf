@@ -46,6 +46,16 @@ variable "gitops_repo" {
   type        = string
 }
 
+variable "gitops_token_param" {
+  description = "Optional exact existing SSM parameter path for private GitOps HTTPS reads. Null uses a public repo. No token value; default aws/ssm key only, custom KMS grants require separate review."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.gitops_token_param == null ? true : (length(var.gitops_token_param) <= 512 && can(regex("^/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$", var.gitops_token_param)))
+    error_message = "gitops_token_param must be null or one exact absolute SSM parameter path without wildcards."
+  }
+}
+
 variable "github_repo" {
   description = "owner/repo allowed to assume the read-only CI role via OIDC"
   type        = string

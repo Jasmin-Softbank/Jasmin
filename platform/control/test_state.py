@@ -73,6 +73,45 @@ class ControlStateTest(unittest.TestCase):
         self.admin = Principal("tenant-a", "operator", True)
         self.store.create_workspace(self.alice, "workspace")
 
+    def test_atomic_deploy_approval_replay_and_claim_generation_are_separate(self):
+        self.ready(); self.ready(resource="vm-b")
+        workspace=self.store.get_workspace(self.admin,"workspace")
+        allow=self.store.create_allow(self.admin,"workspace",operation="deploy",plan_hash="d"*64)
+        def approve():
+            return self.store.approve_and_submit(self.admin,allow["id"],plan_hash="d"*64,generation=workspace["generation"])
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first,second=list(pool.map(lambda _:approve(),range(2)))
+        self.assertEqual(first["id"],second["id"])
+        self.assertEqual(len(self.store.jobs(self.admin,"workspace")),1)
+        claimed=self.store.claim("release-worker")
+        operation=self.store.get_operation(self.admin,claimed["operation_id"])
+        self.assertEqual(operation["generation"],workspace["generation"])
+        self.assertEqual(claimed["generation"],1)
+        self.assertNotEqual(operation["generation"],claimed["generation"])
+        self.now+=400
+        self.assertEqual(approve()["id"],first["id"])
+
+    def test_atomic_deploy_approval_rolls_back_consumption_if_queue_insert_fails(self):
+        self.ready();allow=self.store.create_allow(self.admin,"workspace",operation="deploy",plan_hash="d"*64)
+        with patch.object(self.store,"_submit",side_effect=OperationError("CONTROL_CONFLICT",component="control",phase="test")):
+            with self.assertRaises(OperationError):
+                self.store.approve_and_submit(self.admin,allow["id"],plan_hash="d"*64,generation=allow["generation"])
+        self.assertEqual(self.store.allows(self.admin,"workspace")[0]["state"],"PENDING")
+        self.assertEqual(self.store.jobs(self.admin,"workspace"),[])
+        with self.store.engine.connect() as db:
+            self.assertEqual(db.execute(text("SELECT count(*) FROM operations")).scalar_one(),0)
+
+    def test_deploy_approval_rejects_wrong_plan_human_lease_and_expired_allow(self):
+        self.ready();allow=self.store.create_allow(self.admin,"workspace",operation="deploy",plan_hash="d"*64,ttl_seconds=30)
+        args=dict(plan_hash="d"*64,generation=allow["generation"])
+        with self.assertRaises(OperationError):self.store.approve_and_submit(self.admin,allow["id"],**{**args,"plan_hash":"e"*64})
+        with self.assertRaises(OperationError):self.store.approve_and_submit(self.alice,allow["id"],**args)
+        lease=self.store.acquire_lease(self.alice,"workspace")
+        with self.assertRaises(OperationError):self.store.approve_and_submit(self.admin,allow["id"],**args)
+        self.store.release_lease(self.alice,lease["id"]);self.now+=31
+        with self.assertRaises(OperationError):self.store.approve_and_submit(self.admin,allow["id"],**args)
+        self.assertEqual(self.store.jobs(self.admin,"workspace"),[])
+
     def ready(self, ctx=None, name="workspace", resource="vm-a"):
         ctx = ctx or self.alice
         admin = Principal(ctx.tenant_id, "observer", True)

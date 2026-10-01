@@ -116,7 +116,7 @@ flowchart TB
         B[작업 실행 · CI runner · CD 상태 확인]
     end
     R[CodeBuild 이미지 등록 · GitOps 반영]
-    I[관리자 GitOps · GHCR]
+    I[관리자 GitOps · GHCR / OCI]
     subgraph APP[앱 실행 VM]
         K[k3s · Argo CD · 사용자 앱과 DB]
     end

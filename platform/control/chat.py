@@ -24,7 +24,8 @@ from storage import durable_write
 MAX_REQUEST=28*1024
 MAX_REPLY=8000
 MODEL='gpt-6.1-sol'
-EVENTS={'control.chat.queued','control.chat.started','control.chat.result'}
+PINNED_FAILED_TURN_SHA256='463fe2df3efdce8bfd0ae2716573726a74159aecedb71b1d663d65b6fa8f480b'
+EVENTS={'control.chat.queued','control.chat.started','control.chat.result','control.chat.reconciled'}
 TOPOLOGY_SCHEMA=json.loads((PLATFORM/'schemas/topology-draft.schema.json').read_text())
 SCHEMA={'type':'object','properties':{'reply':{'type':'string','minLength':1,'maxLength':8000},'proposal':{'anyOf':[TOPOLOGY_SCHEMA,{'type':'null'}]}},
         'required':['reply'],'additionalProperties':False}
@@ -155,7 +156,7 @@ def run_once(request,root):
             'SDK_OUTCOME_UNKNOWN' if phase=='invoke' else 'SDK_OUTPUT_INVALID',phase,
             outcome='UNKNOWN' if phase=='invoke' else 'FAIL',side_effect='unknown' if phase=='invoke' else 'completed',
             retry_policy='after_reconcile',cause=exc)
-        result.update(outcome=detail.outcome,error=detail.as_dict())
+        result.update(outcome=detail.outcome,error=detail.as_dict(),meta={k:state[k] for k in ('session_id','thread_id','turn_id','sdk_status','sdk_failure') if state.get(k) is not None})
         emit('agent.unknown' if detail.outcome=='UNKNOWN' else 'agent.failed',status='failed',error=detail)
     if len(json.dumps(result,ensure_ascii=False).encode())>20*1024:
         raise failure('SDK_OUTPUT_INVALID','output',outcome='FAIL',side_effect='completed')
@@ -195,6 +196,7 @@ class ChatQueue:
                     elif identity in self.records:
                         self.records[identity].update(status='RUNNING' if kind=='started' else row['outcome'],error=row['error'])
                         if kind=='result': self.records[identity].update(result_sha256=attrs.get('receipt_sha256'),completed_at=row['occurred_at'])
+                        if kind=='reconciled': self.records[identity].update(reconciliation_sha256=attrs.get('receipt_sha256'),completed_at=row['occurred_at'])
                 if len(rows)<200: return
 
     def _event(self,kind,identity,*,outcome='RUNNING',error=None,sha=None,meta=None):
@@ -206,12 +208,14 @@ class ChatQueue:
             self._refresh()
 
     def start(self):
-        if self.command:
+        if self.command and not self.stop.is_set() and (not self.thread or not self.thread.is_alive()):
             self.thread=threading.Thread(target=self._run,name='railshot-chat',daemon=True); self.thread.start()
 
     def close(self):
+        # Stop accepting/starting work, but collect the already dispatched call.
+        # Killing local SSM polling does not cancel the remote model invocation.
         self.stop.set()
-        if self.thread: self.thread.join(timeout=5)
+        if self.thread: self.thread.join(timeout=370)
         if self.owner is not None and (not self.thread or not self.thread.is_alive()):
             os.close(self.owner); self.owner=None
 
@@ -221,6 +225,7 @@ class ChatQueue:
             raise failure('CONTROL_CONFIG_INVALID','chat.submit')
         identity=str(uuid.uuid5(uuid.UUID(self.remote_workspace_id),key))
         with self.lock:
+            if self.stop.is_set(): raise failure('CONTROL_CONFLICT','chat.draining')
             self._refresh(); path=self.root/(identity+'.request.json')
             if identity in self.records:
                 if read_artifact(path,self.records[identity]['request_sha256'])['message']!=message:
@@ -234,6 +239,133 @@ class ChatQueue:
             write_once(path,artifact)
             self._event('queued',identity,sha=digest(artifact))
             return self.records[identity]
+
+    def reconcile(self, identity):
+        """Explicit administrator readback; consumes only locally staged private evidence.
+
+        No caller-provided status, hash, remote command or model invocation is accepted.
+        The old result stays UNKNOWN; a separate receipt/event records the later finding.
+        """
+        if not self.ctx.is_admin: raise failure('CONTROL_ACCESS_DENIED','chat.reconcile')
+        try:
+            if str(uuid.UUID(identity))!=identity: raise ValueError('invalid message identity')
+        except (ValueError,TypeError,AttributeError) as exc:
+            raise failure('CONTROL_CONFIG_INVALID','chat.reconcile',cause=exc) from exc
+        with self.lock:
+            self._refresh(); record=self.records.get(identity)
+            if not record: raise failure('CONTROL_CONFIG_INVALID','chat.reconcile')
+            if record.get('reconciliation_sha256'):
+                read_artifact(self.root/(identity+'.reconciliation.json'),record['reconciliation_sha256'])
+                return dict(record)
+            if record['status']!='UNKNOWN': raise failure('CONTROL_CONFLICT','chat.reconcile')
+            request=read_artifact(self.root/(identity+'.dispatch.json'))
+            validate_request(request)
+            result_path=self.root/(identity+'.result.json')
+            result=read_artifact(result_path,record.get('result_sha256')) if result_path.exists() else None
+            if record.get('result_sha256') and result is None:
+                raise failure('STATE_EVIDENCE_MISMATCH','chat.reconcile')
+            directory=self.root/'reconciliation'/identity
+            for parent in (directory.parent,directory):
+                if (parent.is_symlink() or not parent.is_dir() or parent.stat().st_uid!=os.getuid()
+                        or parent.stat().st_mode&0o077): raise failure('SDK_POLICY_DENIED','chat.reconcile')
+            evidence={}; hashes={}
+            def evidence_file(name):
+                path=directory/(name+'.json')
+                if (path.is_symlink() or not path.is_file() or path.stat().st_uid!=os.getuid()
+                        or path.stat().st_mode&0o077 or path.stat().st_size>65536):
+                    raise failure('SDK_POLICY_DENIED','chat.reconcile')
+                raw=path.read_bytes();hashes[name]=hashlib.sha256(raw).hexdigest();evidence[name]=json.loads(raw)
+                return evidence[name]
+            binding,intent,invocation=(evidence_file(k) for k in ('binding','intent','invocation'))
+            expected={'message_id':identity,'request_sha256':request['request_sha256'],
+                      'original_result_sha256':digest(result) if result is not None else None,
+                      'source_sha256':intent.get('binding',{}).get('source_sha256')}
+            try:
+                queued=read_artifact(self.root/(identity+'.request.json'),record['request_sha256'])
+                if (binding!=expected or request['message_id']!=identity or request['workspace_id']!=self.remote_workspace_id
+                        or queued['message']!=request['messages'][-1]['content']
+                        or intent['binding']['request_sha256']!=request['request_sha256']
+                        or intent['phase']!='DISPATCHED' or invocation['CommandId']!=intent['command_id']
+                        or invocation['InstanceId']!=intent['binding']['instance']):
+                    raise ValueError('readback binding differs')
+                if invocation['Status']=='Success':
+                    from control.ssm_chat import checked_result
+                    recovered=checked_result(invocation,request)
+                    self._check_result(recovered,request,0)
+                    remote=evidence_file('remote');session=remote['session'];meta=recovered.get('meta',{})
+                    if (remote['request_sha256']!=digest(request) or remote['result_sha256']!=digest(recovered)
+                            or remote['sdk_version']!='0.159.3' or session['event_name']!='agent.completed'
+                            or meta.get('provider')!='codex' or meta.get('model')!=MODEL
+                            or any(not isinstance(meta.get(k),str) or str(uuid.UUID(meta[k]))!=meta[k]
+                                   or session.get(k)!=meta[k] for k in ('session_id','thread_id','turn_id'))):
+                        raise ValueError('remote terminal evidence differs')
+                    receipt={**binding,'version':1,'original_outcome':'UNKNOWN','observed_outcome':'PASS',
+                             'basis':'original_ssm_and_remote_terminal_receipts','ssm_command_id':intent['command_id'],
+                             'evidence_sha256':hashes,'observed_at':invocation['ExecutionEndDateTime'],'result':recovered}
+                    write_once(self.root/(identity+'.reconciliation.json'),receipt)
+                    self._event('reconciled',identity,outcome='PASS',sha=digest(receipt),meta=meta)
+                    self.start()
+                    return dict(self.records[identity])
+            except (KeyError,ValueError,TypeError,AttributeError) as exc:
+                raise failure('STATE_EVIDENCE_MISMATCH','chat.reconcile',cause=exc) from exc
+            session,sdk=(evidence_file(k) for k in ('session','sdk'))
+            try:
+                if (binding!={'message_id':identity,'request_sha256':request['request_sha256'],
+                              'original_result_sha256':digest(result),'source_sha256':intent['binding']['source_sha256']}
+                        or request['message_id']!=identity or request['workspace_id']!=self.remote_workspace_id
+                        or result['message_id']!=identity or result['request_sha256']!=request['request_sha256']
+                        or intent['binding']['request_sha256']!=request['request_sha256']
+                        or intent['phase']!='DISPATCHED' or invocation['CommandId']!=intent['command_id']
+                        or invocation['InstanceId']!=intent['binding']['instance']
+                        or invocation['Status']!='Failed' or invocation['ResponseCode']!=1
+                        or json.loads(invocation['StandardOutputContent'])!=result
+                        or result['outcome']!='UNKNOWN' or result['error']['code']!='SDK_OUTCOME_UNKNOWN'
+                        or session['error']!=result['error'] or session['event_name']!='agent.unknown'
+                        or not all(str(uuid.UUID(session[k]))==session[k] for k in ('thread_id','turn_id'))
+                        or sdk['version']!='0.159.3'
+                        or sdk['failed_turn_source_sha256']!=PINNED_FAILED_TURN_SHA256):
+                    raise ValueError('readback binding differs')
+                frames=[f for c in result['error']['causes'] if c['type']=='builtins.RuntimeError' for f in c.get('frames',[])]
+                if not any(f['file']=='_run.py' and f['function']=='_raise_for_failed_turn' for f in frames):
+                    raise ValueError('no pinned terminal-failure evidence')
+                original=OperationError.from_dict(result['error'])
+            except (KeyError,ValueError,TypeError,AttributeError) as exc:
+                raise failure('STATE_EVIDENCE_MISMATCH','chat.reconcile',cause=exc) from exc
+            detail=failure('SDK_EXECUTION_FAILED','chat.reconcile',outcome='FAIL',side_effect='completed',cause=original)
+            receipt={**binding,'version':1,'original_outcome':'UNKNOWN','observed_outcome':'FAIL',
+                     'basis':'pinned_sdk_terminal_failed','cause_detail':'not_preserved',
+                     'ssm_command_id':intent['command_id'],'sdk_version':sdk['version'],
+                     'thread_id':session['thread_id'],'turn_id':session['turn_id'],'evidence_sha256':hashes,
+                     'observed_at':invocation['ExecutionEndDateTime'],'error':detail.as_dict()}
+            write_once(self.root/(identity+'.reconciliation.json'),receipt)
+            self._event('reconciled',identity,outcome='FAIL',error=detail,sha=digest(receipt),meta=session)
+            self.start()  # Only pending/new requests may run; the reconciled request is terminal.
+            return dict(self.records[identity])
+
+    def reconcile_terminal_failure(self,identity):
+        """Compatibility name for the administrator's evidence-only reconciliation."""
+        return self.reconcile(identity)
+
+    def _result(self,record):
+        if record.get('reconciliation_sha256'):
+            receipt=read_artifact(self.root/(record['id']+'.reconciliation.json'),record['reconciliation_sha256'])
+            if receipt.get('observed_outcome')=='PASS': return receipt['result']
+        return read_artifact(self.root/(record['id']+'.result.json'),record['result_sha256'])
+
+    def _check_result(self,result,request,returncode):
+        if (not isinstance(result,dict) or result.get('message_id')!=request['message_id']
+                or result.get('request_sha256')!=request['request_sha256']
+                or result.get('outcome') not in ('PASS','FAIL','BLOCKED','UNKNOWN')
+                or returncode!=(0 if result['outcome']=='PASS' else 1)):
+            raise ValueError('chat result contract mismatch')
+        detail=OperationError.from_dict(result['error']) if result.get('error') else None
+        if result['outcome']=='PASS':
+            if detail or not isinstance(result.get('reply'),str) or not result['reply'].strip() or len(result['reply'].encode())>MAX_REPLY:
+                raise ValueError('chat reply invalid')
+            if result.get('proposal') is not None and result.get('proposal_review')!=proposal_review(result['proposal'],request['context']):
+                raise ValueError('proposal review differs')
+        elif detail is None or detail.outcome!=result['outcome']: raise ValueError('chat error invalid')
+        return detail
 
     def narrate_job(self,job):
         if not self.command or job['kind'] not in ('prepare','ci'): return
@@ -262,7 +394,7 @@ class ChatQueue:
                     messages.append({'id':record['id'],'role':'user','text':artifact['message'],
                         'created_at':record['created_at'],**common})
                 if record['status']=='PASS':
-                    result=read_artifact(self.root/(record['id']+'.result.json'),record['result_sha256'])
+                    result=self._result(record)
                     messages.append({'id':record['id']+':reply','role':'assistant','text':result['reply'],
                         'created_at':record.get('completed_at',record['created_at']),'origin':artifact.get('origin','user'),
                         'job_id':artifact.get('job_id'),**common,
@@ -270,6 +402,7 @@ class ChatQueue:
             return {'configured':bool(self.command),'pending':sum(r['status'] in ('QUEUED','RUNNING') for r in self.records.values()),
                     'messages':messages,'model':MODEL,'has_more':len(records)>len(selected),
                     'before':selected[0]['sequence'] if selected else None,
+                    'reconciliation_ids':[r['id'] for r in self.records.values() if r['status']=='UNKNOWN'],
                     'error':self.error or next((r['error'] for r in reversed(list(self.records.values())) if r['status']=='UNKNOWN'),None)}
 
     def snapshot(self):
@@ -288,7 +421,7 @@ class ChatQueue:
                     if old['sequence']>=record['sequence']: break
                     if old['status']=='PASS':
                         user=read_artifact(self.root/(old['id']+'.request.json'),old['request_sha256'])
-                        result=read_artifact(self.root/(old['id']+'.result.json'),old['result_sha256'])
+                        result=self._result(old)
                         if user.get('origin','user')=='user': history.append({'role':'user','content':user['message']})
                         history.append({'role':'assistant','content':result['reply']})
                 payload={'workspace_id':self.remote_workspace_id,'messages':history[-16:]+[{'role':'user','content':artifact['message']}], 'context':self.context(job_id=artifact.get('job_id'))}
@@ -297,24 +430,12 @@ class ChatQueue:
                 validate_request(request); write_once(path,request)
             validate_request(request)
             self._event('started',identity,sha=request['request_sha256']); started=True
-            def tick():
-                if self.stop.is_set(): raise InterruptedError('chat stopping')
             try:
-                process=self.transport(self.command,input=encoded(request)+b'\n',timeout=360,max_output_bytes=32*1024,on_tick=tick)
+                process=self.transport(self.command,input=encoded(request)+b'\n',timeout=360,max_output_bytes=32*1024)
             except (FileNotFoundError,PermissionError) as exc:
                 raise failure('STEP_START_FAILED','chat.transport.start',retry_policy='after_configuration',cause=exc) from exc
             result=json.loads(process.stdout)
-            if (not isinstance(result,dict) or result.get('message_id')!=identity or result.get('request_sha256')!=request['request_sha256']
-                    or result.get('outcome') not in ('PASS','FAIL','BLOCKED','UNKNOWN') or process.returncode!=(0 if result['outcome']=='PASS' else 1)):
-                raise ValueError('chat result contract mismatch')
-            detail=OperationError.from_dict(result['error']) if result.get('error') else None
-            if result['outcome']=='PASS':
-                if detail or not isinstance(result.get('reply'),str) or not result['reply'].strip() or len(result['reply'].encode())>MAX_REPLY:
-                    raise ValueError('chat reply invalid')
-            elif detail is None or detail.outcome!=result['outcome']: raise ValueError('chat error invalid')
-            if result['outcome']=='PASS' and result.get('proposal') is not None:
-                review=proposal_review(result['proposal'],request['context'])
-                if result.get('proposal_review')!=review: raise ValueError('proposal review differs')
+            detail=self._check_result(result,request,process.returncode)
             write_once(self.root/(identity+'.result.json'),result)
             self._event('result',identity,outcome=result['outcome'],error=detail,sha=digest(result),meta=result.get('meta'))
         except Exception as exc:

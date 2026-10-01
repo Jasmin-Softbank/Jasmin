@@ -65,12 +65,43 @@ class AWSBootstrapTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'variables.tf').write_text((MODULE / 'variables.tf').read_text())
-            for key, bad in (('node_ref', 'main'), ('ami_id', 'stable/current'), ('instance_type', 'unreviewed-size')):
+            for key, bad in (('node_ref', 'main'), ('ami_id', 'stable/current'), ('instance_type', 'unreviewed-size'),
+                             ('gitops_token_param', '/railshot/*'), ('gitops_token_param', 'raw-token-value')):
                 with self.subTest(key=key):
                     inputs = root / 'inputs.tfvars.json'; inputs.write_text(json.dumps({**values, key: bad}))
                     result = subprocess.run(['terraform', 'console', '-no-color', '-var-file=' + str(inputs)], cwd=root,
                                             input='jsonencode(var.' + key + ')\n', capture_output=True, text=True)
                     self.assertIn('Error:', result.stderr)
+
+    def test_actual_parameter_policy_has_no_default_secret_access_and_one_explicit_binding(self):
+        values = {'target_id': 'aws-offline', 'owner_ref': 'terraform:offline:test',
+                  'account_id': '000000000000', 'ami_id': 'ami-' + '0' * 17, 'node_ref': 'a' * 40,
+                  'gitops_repo': 'https://github.com/example/gitops', 'gitops_path': 'clusters/aws/platform', 'gitops_revision': 'main'}
+        # Evaluate the actual pure locals and variables without provider initialization/API calls.
+        source = (MODULE / 'main.tf').read_text()
+        locals_block = 'locals {' + source.split('locals {', 1)[1].split('\nresource ', 1)[0]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'variables.tf').write_text((MODULE / 'variables.tf').read_text())
+            (root / 'locals.tf').write_text(locals_block)
+            for parameter in (None, '/railshot/gitops-read-token'):
+                inputs = root / 'inputs.tfvars.json'; inputs.write_text(json.dumps({**values, 'gitops_token_param': parameter}))
+                process = subprocess.run(['terraform', 'console', '-no-color', '-var-file=' + str(inputs)], cwd=root,
+                    input='jsonencode(local.node_parameter_policy)\n', capture_output=True, text=True, check=True)
+                self.assertNotIn('Error:', process.stderr)
+                policy = json.loads(json.loads(process.stdout)); rules = policy['Statement']
+                allows = [rule for rule in rules if rule['Effect'] == 'Allow']
+                self.assertNotIn('kms:Decrypt', json.dumps(policy))
+                self.assertNotIn('ghcr', json.dumps(policy))
+                self.assertTrue(any(rule['Action'] == ['ssm:GetParameters', 'ssm:GetParametersByPath', 'ssm:GetParameterHistory']
+                                    and rule['Effect'] == 'Deny' and rule['Resource'] == '*' for rule in rules))
+                if parameter is None:
+                    self.assertEqual(allows, [])
+                    self.assertIn({'Effect':'Deny', 'Action':['ssm:GetParameter'], 'Resource':'*'}, rules)
+                else:
+                    arn = 'arn:aws:ssm:ap-northeast-2:000000000000:parameter' + parameter
+                    self.assertEqual(allows, [{'Effect':'Allow', 'Action':['ssm:GetParameter'], 'Resource':[arn]}])
+                    self.assertIn({'Effect':'Deny', 'Action':['ssm:GetParameter'], 'NotResource':[arn]}, rules)
 
 
 if __name__ == '__main__':

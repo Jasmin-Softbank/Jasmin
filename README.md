@@ -2,7 +2,7 @@
 
 **로컬 웹앱을 올리면 AI가 필요한 수정을 제안하고, 실제 CI 검사를 통과한 동일 이미지를 클라우드에 배포하는 시스템.** SoftBank Hackathon 2026의 “One Action, Infinite Clouds”를 목표로 개발하고 있습니다. 플랫폼 가제는 RAILSHOT, 콘솔의 대화 도우미는 Nuvlet Bot(누블렛)입니다. `.jasmin/` 등 기존 내부 이름은 유지합니다.
 
-현재는 **관리자 한 명이 사용하는 로컬 콘솔과 실제 원격 CI·SDK 채팅을 연결한 PoC**입니다. 모든 클라우드·모든 앱의 원터치 배포가 완성된 상태는 아닙니다. 아래는 **2026-10-01 21:45 KST / 12:45 UTC**에 확인한 소스와 보존된 실행 증거 기준입니다.
+현재는 **관리자 한 명이 사용하는 로컬 콘솔과 실제 원격 CI·SDK 채팅을 연결한 PoC**입니다. 모든 클라우드·모든 앱의 원터치 배포가 완성된 상태는 아닙니다. 아래는 **2026-10-01 22:25 KST / 13:25 UTC**에 확인한 소스와 보존된 실행 증거 기준입니다.
 
 ## 현재 어디까지 동작하나요?
 
@@ -11,13 +11,15 @@
 | **CI 핵심** | 격리된 GCP CI에서 정상 fixture 10종의 전체 gate PASS. 같은 공통 코드로 AWS CI VM에서도 npm-js 전체 6단계 PASS(81.3초). 실제 Codex source/packaging 수정 후 같은 gate 재검증 | 임의 업로드 전체 지원을 뜻하지 않음. 지원 범위·실패 사례는 [CI 검증 원장](platform/scenarios/ci-validation.md)에서 관리 |
 | **AWS · Terraform** | AWS control VM에서 Codex SDK 구독 인증·실제 응답/수정. AWS/GCP/Azure 관리자 plan/apply 코드와 로컬 검사 | **AWS의 새 앱 스택을 처음부터 배포하는 E2E 미검증**. 제품 workspace allocator·상위 인프라 CRUD 연결 미구현 |
 | **Argo bootstrap** | GCP 앱 노드의 k3s·Cilium·Argo CD·KEDA 설치, 보존 디스크와 stop/start 후 readiness 확인 | AWS 앱 스택 bootstrap 인수, 실제 사용자 앱의 revision·image digest·공개 URL 검증 |
-| **CodeBuild** | 고정 플랫폼 commit의 release 전용 publisher·Terraform·durable dispatch 구현, 로컬 회귀 PASS | 첫 native 빌드의 이미지 게시 실패·UNKNOWN 보존. 실패 진단 보완 및 재검증 중. 제품 Allow와의 별도 연결은 미완료 |
-| **CD · Allow** | 영속 승인 kernel, exact-image bundle, release adapter와 revision 관측 코드 | **제품 Allow 소비→release dispatch 및 실제 공개 배포 인수 진행 중**. 승인 버튼·Argo 설치만으로 배포 완료 처리하지 않음 |
+| **CodeBuild** | 고정 플랫폼 commit의 release 전용 publisher·Terraform·durable dispatch 구현, 로컬 회귀 PASS | 첫 native 빌드의 이미지 게시 실패·UNKNOWN 보존. 진단 보존 회귀 PASS, GHCR 결정 뒤 ECR 추가 실행 보류. 제품 Allow와 CodeBuild의 별도 연결은 미완료 |
+| **CD · Allow** | 현재 CI/bundle 검증→계획→Allow 소비와 job 제출의 원자적 transaction→release dispatch 구현·SQLite/PostgreSQL/HTTP 회귀 PASS | **실제 공개 배포 인수 미완료**. 현재 콘솔의 release transport는 미설정이며 GitOps 접근 404가 해결되지 않음. private registry 준비가 없으면 Allow 소비 전 차단 |
+| **이미지 레지스트리** | GHCR/OCI를 제품 기본으로 결정. 기존 공통 publisher 재사용, trusted pull Secret 이름을 앱/migration 렌더에 연결 | **namespace Secret 설치·실제 GHCR push/pull 미검증**. 설치 경계가 연결되기 전 private release는 차단 |
+| **이미지 캐시** | CI BuildKit volume 재사용, 앱·migration digest와 `Always` pull 정책으로 노드 layer 재사용 | GHCR 원격 build cache·cold/warm 성능 미검증. 이미지/bundle 총 보존 정책 및 tenant 재할당 검증은 GAP-045 |
 | **LKG 복구** | 강한 배포 검증 후 정상 선언 저장, 앱 경로만 새 커밋으로 복원, 같은 검증 재수행 구현·로컬 회귀 | **실제 앱 배포·복원 인수 미완료**. 제품 rollback 선택 UI와 DB 데이터 복원은 별도 |
 
-콘솔 API·SSE·영속 job 상태·제어권 전환·SDK 채팅은 구현돼 있습니다. 다만 **콘솔 CI는 현재 `--max-attempts 0`으로 실행**하므로 자동 코드 수정을 수행하지 않습니다. CLI로 확인한 SDK 수정 성공과 콘솔 기능을 구분합니다. 최신 세부 상태는 [통합 계획의 실행 기록](platform/CONTROL-PLANE-PLAN.md#77-2026-10-01-구현-증분과-남은-검증)과 [클라우드 검증 기록](platform/scenarios/cloud-validation.md)을 따릅니다.
+콘솔 API·SSE·영속 job 상태·제어권 전환·SDK 채팅은 구현돼 있습니다. 현재 연결 대상 GCP CI VM은 22:07 KST에 예약 종료됐으며 마지막 PASS bundle은 보존했습니다. 다만 **콘솔 CI는 현재 `--max-attempts 0`으로 실행**하므로 자동 코드 수정을 수행하지 않습니다. CLI로 확인한 SDK 수정 성공과 콘솔 기능을 구분합니다. 최신 세부 상태는 [통합 계획의 실행 기록](platform/CONTROL-PLANE-PLAN.md#77-2026-10-01-구현-증분과-남은-검증)과 [클라우드 검증 기록](platform/scenarios/cloud-validation.md)을 따릅니다.
 
-**최근 실제 검증:** CI VM 재부팅 후 격리 증거 자동 재생성(21:08), 새 CI 실행의 6단계 PASS·실시간 진행률·품질 로그 단계 일치(21:28), SDK 실패의 명시적 상태 복구와 새 대화·완료 설명 응답(21:28)을 확인했습니다. 과거 `UNKNOWN` 원본은 보존하고, 독립 근거에 따른 FAIL 확정을 별도 기록했습니다. 당시 공급자 오류 원문은 유실되어 근본 원인까지 복원한 것으로 주장하지 않습니다. 제품 전체 E2E와 앱 CD 인수는 아직 진행 중입니다. 21:35 이후 GitOps 저장소 접근이 404여서 Argo root도 Degraded로 관측됐으며, 저장소 변경 여부를 확인하기 전 배포를 차단했습니다. 진행 중 대화를 서버 재시작으로 끊은 추가 사례(GAP-042)는 원래 원격 PASS 응답을 재조회해 복구 중입니다.
+**최근 실제 검증:** CI VM 재부팅 후 격리 증거 자동 재생성(21:08), 새 CI 실행의 6단계 PASS·실시간 진행률·품질 로그 단계 일치(21:28), SDK 실패의 명시적 상태 복구와 새 대화·완료 설명 응답을 확인했습니다. 이후 재시작으로 끊긴 대화도 기존 원격 PASS 결과를 대조해 실제 UI에서 복원했으며 모델 재호출은 없었습니다. 새 SDK 응답은 구조화된 12개 노드/12개 연결의 SVG 설명도로 표시됐습니다. 별도 브라우저 시험에서는 이전 페이지 추가·동시 대화 도착 후 112개 메시지의 순서/중복과 1px 이내 스크롤 앵커를 확인했습니다. 과거 UNKNOWN과 원래 실패는 유지합니다. 21:35 이후 GitOps 접근 404·Argo root Degraded는 여전히 별도 장애이며 제품 전체 E2E를 완료했다고 표시하지 않습니다.
 
 ## 시스템 구조
 
@@ -31,8 +33,10 @@ flowchart LR
   CI["격리 CI worker<br/>intake · gate · bundle"]
   SDK["AWS Control SDK<br/>Nuvlet 채팅 · 읽기 제한"]
   REL["Trusted release<br/>동일 이미지 등록"]
+  REG["GHCR / OCI<br/>고정 · 실제 게시 인수 전"]
   GIT["GitOps 저장소<br/>앱 선언 · image digest"]
   ARGO["앱 클러스터 Argo CD<br/>동기화 · 상태 관측"]
+  APP["사용자 앱 Pod<br/>동일 image digest"]
 
   UI -->|"요청 / SSE"| API
   API -->|"transaction / replay"| DB
@@ -42,14 +46,17 @@ flowchart LR
   SDK -->|"실제 SDK 응답"| API
   CI -. "검증 bundle 전달" .-> REL
   API -. "Allow 소비 · dispatch" .-> REL
+  REL -. "OCI push · digest readback" .-> REG
+  REG -. "namespace별 pull 인증" .-> APP
   REL -. "digest 고정 선언" .-> GIT
   GIT -. "사용자 앱 release 인수 중" .-> ARGO
+  ARGO -. "앱 선언 동기화" .-> APP
   ARGO -. "revision · health 증거" .-> API
 
   classDef active fill:#ecfdf5,stroke:#047857,color:#064e3b
   classDef pending fill:#f8fafc,stroke:#64748b,color:#334155,stroke-dasharray:5 4
   class UI,API,DB,CI,SDK active
-  class REL,GIT,ARGO pending
+  class REL,REG,GIT,ARGO,APP pending
 ```
 
 사용자는 폴더를 올리고 검사 구성을 확인합니다. 펫 메뉴에서 컴퓨터를 열면 같은 대화 옆에 실제 CI 로그와 파일을 봅니다. 사람이 제어권을 가져오면 활성 CI와 충돌하는 명령을 막고, 반환한 뒤 봇 실행을 다시 허용합니다. 준비 결과·전체 CI 결과·배포 결과는 각각 다른 상태입니다. 채팅은 관측된 상태를 설명하며, 대답 자체가 승인이나 배포 실행은 아닙니다. 토폴로지 제안도 **DRAFT·미반영**으로 표시하고 자동 적용하지 않습니다.
@@ -98,6 +105,7 @@ flowchart LR
 - [인프라 인터페이스](platform/contract/infra-interface.md): Terraform/guest 구성의 소유권, plan·Allow·operation·자원 수명
 - [관측성 계약](platform/contract/observability.md): typed error·이벤트·재시도·UNKNOWN 의미
 - [CD 실행 전제](ci/README.md): trusted runner·Argo 내부 관측·GitOps revision 검증
+- [레지스트리 계약](platform/contract/registry.md): GHCR 고정·OCI 공통화·3계층 캐시·권한·수명·실제 인수 상태
 - [DB와 migration](platform/scenarios/db-migration.md) · [자동 확장](platform/scenarios/autoscaling.md): 현재 구현과 미지원 범위
 
 ## 로컬에서 확인하기

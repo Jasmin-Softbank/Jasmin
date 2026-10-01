@@ -99,7 +99,6 @@ html,body{height:100%;overflow:hidden}
 }
 
 #railshot-ui-flow .nv-history-more{align-self:center;color:var(--nv-muted);font-size:12px;min-height:32px}
-#railshot-ui-flow .nv-chat-message{content-visibility:auto;contain-intrinsic-size:auto 100px}
 #railshot-ui-flow .nv-job-history summary{cursor:pointer;padding:7px 0;color:var(--nv-muted);font-size:11px}
 #railshot-ui-flow .nv-job-history ol{list-style:none;padding:0;margin:0;display:grid;gap:7px;max-height:180px;overflow:auto}
 #railshot-ui-flow .nv-job-history li{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px}

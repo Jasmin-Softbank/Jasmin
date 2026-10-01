@@ -82,6 +82,146 @@ class ServerTest(unittest.TestCase):
         claimed=self.app.store.claim(self.app.worker_id,tenant_id=self.app.ctx.tenant_id,workspace_id=self.app.workspace_id)
         self.assertEqual(job['id'],claimed['id']); return claimed
 
+    def release_fixture(self):
+        from control.release import digest
+        from control.server import save_json
+        from execution import GATE_ORDER
+        ci=self.claimed('ci');self.app.dispatch(ci)
+        path=self.root/'results'/(ci['id']+'.json');result=json.loads(path.read_text())
+        result['details'].update(passed=True,layers=[{'layer':name,'ok':True,'outcome':'PASS'} for name in GATE_ORDER],
+            bundle={'relative_path':f"{self.app.remote_workspace_id}/{ci['id']}/bundle",'manifest_sha256':'a'*64,'source_sha256':'b'*64,'bytes':100})
+        save_json(path,result)
+        self.app.release_command=['synthetic-release'];self.config['release_transport_argv']=['synthetic-release']
+        self.release_calls=[];self.release_behavior='pass'
+        old=self.app.transport
+        def transport(argv,**kwargs):
+            if argv!=['synthetic-release']:return old(argv,**kwargs)
+            request=json.loads(kwargs['input']);self.release_calls.append(request)
+            target={'workspace_id':self.app.workspace_id,'generation':self.app.store.get_workspace(self.app.ctx,self.app.workspace_id)['generation'],
+                'tenant':self.app.ctx.tenant_id,'cluster':'gcp','repo_url':'https://github.com/example/gitops',
+                'registry_prefix':'ghcr.io/example/demo','tag':'demo','domain':'example.test','suffix':'abcdef',
+                'storage_class':'local-path','gitops_revision':'d'*40,'publisher_backend':'docker','https_gateway':'railshot-operator-demo'}
+            target.update(image_pull_secret_name=None,registry_visibility='public')
+            plan={'version':1,'operation':'deploy','target':target,'manifest_sha256':'a'*64,'source_sha256':'b'*64,
+                'images':{'web':{'id':'sha256:'+'c'*64,'local_ref':'synthetic:test'}},'external_access':'NOT_VERIFIED',
+                'host':'demo-abcdef.example.test','app':'demo','gitops_path':'apps/gcp/operator/demo','transport':'https'}
+            plan.update(deployment_url='https://'+plan['host']+'/',probe_url='https://'+plan['host']+'/health')
+            if self.release_behavior in ('missing-pull-secret','private-without-name'):
+                from control.release import registry_prerequisites
+                plan['target']['registry_visibility']='private'
+                if self.release_behavior=='missing-pull-secret':plan['target']['image_pull_secret_name']='railshot-pull'
+                plan['prerequisites']=registry_prerequisites(plan['target'],plan['app'])
+            if self.release_behavior=='wrong-tenant':plan['target']['tenant']='different'
+            plan['plan_hash']=digest(plan)
+            if request['phase']=='prepare':response={'phase':'prepare','ci_job_id':ci['id'],'plan':plan}
+            else:
+                if self.release_behavior=='timeout':raise subprocess.TimeoutExpired(argv,1)
+                if self.release_behavior=='not-found':raise FileNotFoundError('synthetic transport absent')
+                receipt={'status':'PASS','phase':'deployment.verified','operation_id':request['operation']['id'],
+                    'plan_hash':request['plan']['plan_hash'],'external_access':'PASS','pod_image_identity':'PASS',
+                    'deployment_url':request['plan']['deployment_url'],'revision':'e'*40,'observed_revision':'e'*40,
+                    'external':{'tls_verified':True,'url':request['plan']['probe_url']},'runtime_before':{'status':'PASS'},'runtime_after':{'status':'PASS'}}
+                if self.release_behavior=='weak-receipt':receipt['pod_image_identity']='NOT_VERIFIED'
+                if self.release_behavior=='wrong-probe':receipt['external']['url']='https://other.example.test/health'
+                response={'phase':'execute','job_id':request['job_id'],'job_generation':request['job_generation'], 'receipt':receipt}
+                if self.release_behavior=='stale-fence':response['job_generation']+=1
+            return subprocess.CompletedProcess(argv,0,json.dumps(response),'')
+        self.app.transport=transport
+        return ci
+
+    def test_http_release_plan_approve_consumes_and_queues_once_before_execution(self):
+        ci=self.release_fixture();self.login()
+        status,prepared,_=self.http('POST','/api/releases/plan',{'ci_job_id':ci['id']});self.assertEqual(status,201)
+        route='/api/allows/'+prepared['allow']['id']
+        status,approved,_=self.http('POST',route,{'approve':True});self.assertEqual(status,200)
+        self.assertEqual(approved['job']['status'],'QUEUED');self.assertEqual(len(self.release_calls),1)
+        again=self.http('POST',route,{'approve':True});self.assertEqual(again[1]['job']['id'],approved['job']['id'])
+        self.assertEqual(self.app.store.get_allow(self.app.ctx,prepared['allow']['id'])['state'],'CONSUMED')
+        self.assertEqual(self.http('POST','/api/control',{'action':'acquire'})[0],409)
+        self.assertEqual(self.http('POST','/api/upload',{'files':[{'path':'new.py','content_base64':'eA=='}]})[0],409)
+        job=self.app.store.claim(self.app.worker_id);self.app.dispatch(job)
+        self.assertEqual(self.app.store.get_job(self.app.ctx,job['id'])['status'],'PASS')
+        self.assertEqual([r['phase'] for r in self.release_calls],['prepare','execute'])
+        self.assertEqual(self.app.snapshot()['deployment']['receipt']['pod_image_identity'],'PASS')
+        self.assertTrue(self.app.snapshot()['capabilities']['browser'])
+        self.assertEqual(self.app.chat_context()['deployment']['external_access'],'PASS')
+        self.assertIsNotNone(self.app.chat_context()['deployment']['observed_at'])
+        self.assertIsNone(self.app.store.claim(self.app.worker_id))
+
+    def test_release_rejects_stale_upload_incomplete_ci_wrong_target_and_missing_bundle(self):
+        ci=self.release_fixture();path=self.root/'results'/(ci['id']+'.json');original=path.read_text()
+        for broken in ('missing_bundle','partial_gate'):
+            value=json.loads(original)
+            if broken=='missing_bundle':value['details'].pop('bundle')
+            else:value['details']['layers'].pop()
+            path.write_text(json.dumps(value))
+            with self.assertRaises(OperationError):self.app.release_plan({'ci_job_id':ci['id']})
+        path.write_text(original);self.release_behavior='wrong-tenant'
+        with self.assertRaises(OperationError):self.app.release_plan({'ci_job_id':ci['id']})
+        self.release_behavior='pass';prepared=self.app.release_plan({'ci_job_id':ci['id']});self.upload()
+        with self.assertRaises(OperationError):self.app.decide_allow(prepared['allow']['id'],True)
+        self.assertEqual(self.app.store.allows(self.app.ctx,self.app.workspace_id)[0]['state'],'PENDING')
+        self.assertFalse(any(j['kind']=='deploy' for j in self.app.store.jobs(self.app.ctx,self.app.workspace_id)))
+
+    def test_release_requires_ci_within_complete_recent_mutation_window(self):
+        ci=self.release_fixture()
+        with patch.object(self.app.store,'jobs',return_value=[]):
+            with self.assertRaises(OperationError) as caught:self.app.release_plan({'ci_job_id':ci['id']})
+        self.assertEqual(caught.exception.code,'STATE_EVIDENCE_MISMATCH');self.assertEqual(self.release_calls,[])
+
+    def test_http_missing_pull_secret_cannot_consume_allow_or_enqueue_deploy(self):
+        ci=self.release_fixture();self.release_behavior='missing-pull-secret';self.login()
+        status,prepared,_=self.http('POST','/api/releases/plan',{'ci_job_id':ci['id']})
+        self.assertEqual(status,201);identity=prepared['allow']['id']
+        status,response,_=self.http('POST','/api/allows/'+identity,{'approve':True})
+        self.assertEqual(status,409);self.assertEqual(response['error']['code'],'CONTROL_NOT_READY')
+        self.assertEqual(response['error']['phase'],'registry.pull_secret.prerequisite')
+        self.assertEqual(self.app.store.get_allow(self.app.ctx,identity)['state'],'PENDING')
+        self.assertFalse(any(row['kind']=='deploy' for row in self.app.store.jobs(self.app.ctx,self.app.workspace_id)))
+        self.assertEqual([request['phase'] for request in self.release_calls],['prepare'])
+        self.assertEqual(self.http('POST','/api/allows/'+identity,{'approve':False})[0],200)
+
+    def test_http_private_registry_without_name_does_not_fall_back_to_public(self):
+        ci=self.release_fixture();self.release_behavior='private-without-name';self.login()
+        status,prepared,_=self.http('POST','/api/releases/plan',{'ci_job_id':ci['id']})
+        self.assertEqual(status,201);identity=prepared['allow']['id']
+        self.assertEqual(prepared['plan']['prerequisites'][0]['reason'],'registry_pull_secret_not_registered')
+        self.assertEqual(self.http('POST','/api/allows/'+identity,{'approve':True})[0],409)
+        self.assertEqual(self.app.store.get_allow(self.app.ctx,identity)['state'],'PENDING')
+        self.assertFalse(any(row['kind']=='deploy' for row in self.app.store.jobs(self.app.ctx,self.app.workspace_id)))
+
+    def test_release_timeout_stale_fence_and_weak_success_never_pass_or_repeat(self):
+        for behavior in ('timeout','stale-fence','weak-receipt','wrong-probe','not-found'):
+            with self.subTest(behavior=behavior):
+                # Distinct temporary consoles keep each UNKNOWN's reserved account slot intact.
+                case=ServerTest('test_auth_one_time_bootstrap_origin_host_and_static_allowlist');case.setUp()
+                try:
+                    ci=case.release_fixture();prepared=case.app.release_plan({'ci_job_id':ci['id']})
+                    case.app.decide_allow(prepared['allow']['id'],True);job=case.app.store.claim(case.app.worker_id)
+                    case.release_behavior=behavior;case.app.dispatch(job)
+                    self.assertEqual(case.app.store.get_job(case.app.ctx,job['id'])['status'],'BLOCKED' if behavior=='not-found' else 'UNKNOWN')
+                    self.assertFalse(case.app.snapshot()['capabilities']['browser']);self.assertIsNone(case.app.store.claim(case.app.worker_id))
+                    self.assertEqual(len(case.release_calls),2)
+                finally:case.doCleanups()
+
+    def test_release_queued_intent_survives_restart_without_losing_allow(self):
+        ci=self.release_fixture();prepared=self.app.release_plan({'ci_job_id':ci['id']})
+        queued=self.app.decide_allow(prepared['allow']['id'],True)['job'];transport=self.app.transport
+        self.app.close()
+        restarted=Console(self.root,self.config,transport=transport);self.addCleanup(restarted.close);self.addCleanup(restarted.store.engine.dispose)
+        self.app=restarted;self.app.inspect()
+        job=self.app.store.claim(self.app.worker_id);self.assertEqual(job['id'],queued['id']);self.app.dispatch(job)
+        self.assertEqual(self.app.store.get_job(self.app.ctx,job['id'])['status'],'PASS')
+        self.assertEqual([r['phase'] for r in self.release_calls],['prepare','execute'])
+
+    def test_chat_reconciliation_requires_admin_and_empty_body(self):
+        route='/api/chat/00000000-0000-0000-0000-000000000001/reconcile'
+        self.assertEqual(self.http('POST',route,{})[0],403);self.login()
+        with patch.object(self.app.chat,'reconcile',return_value={'status':'FAIL'}) as reconcile:
+            self.assertEqual(self.http('POST',route,{'status':'FAIL'})[0],400);reconcile.assert_not_called()
+            self.assertEqual(self.http('POST',route,{})[:2],(200,{'status':'FAIL'}))
+            reconcile.assert_called_once_with('00000000-0000-0000-0000-000000000001')
+
     def test_auth_one_time_bootstrap_origin_host_and_static_allowlist(self):
         self.assertEqual(self.http('GET','/api/state')[0],403)
         token=self.app.bootstrap; headers=self.login()
@@ -333,6 +473,28 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(state['connection']['error']['code'],'OBSERVATION_WRITE_FAILED')
         self.assertFalse(state['workspace']['ready']); self.assertEqual(state['logs'],[])
 
+    def test_delayed_logs_do_not_inherit_latest_gate_phase(self):
+        job=self.claimed('ci')
+        def delayed(argv,**kwargs):
+            request=json.loads(kwargs['input'])
+            identity={k:request[k] for k in ('workspace_id','job_id','generation')}
+            def emit(kind,**fields):
+                kwargs['on_output']('stdout',(json.dumps({'type':kind,**identity,**fields})+'\n').encode())
+            emit('stage',phase='L2',outcome='RUNNING')
+            emit('log',phase='Q',text='quality output\n')
+            emit('log',text='general output\n')
+            kwargs['on_output']('stderr',b'transport warning\n')
+            emit('result',outcome='PASS',returncode=0,details={})
+            return subprocess.CompletedProcess(argv,0,'','')
+        self.app.transport=delayed
+        self.app._request({'operation':'ci','workspace_id':self.app.workspace_id,
+                           'job_id':job['id'],'generation':job['generation']},job)
+        phases={row['attributes']['text']:row['attributes']['phase']
+                for row in self.app.event_page(0) if row['event']=='log'}
+        self.assertEqual(phases['quality output\n'],'Q')
+        self.assertEqual(phases['general output\n'],'ci')
+        self.assertEqual(phases['transport warning\n'],'transport')
+
     def test_authenticated_chat_queue_does_not_block_ci_and_narration_is_async(self):
         self.login(); self.app.chat.command=['synthetic-chat']
         entered=threading.Event(); release=threading.Event()
@@ -394,7 +556,7 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(context['ci']['passed'],0)  # Synthetic worker supplied no individual check evidence.
         self.assertTrue(context['stage_summary']['ci']['same_upload'])
         self.assertTrue(context['stage_summary']['ci']['observed_at'])
-        self.assertEqual(context['deployment']['status'],'NOT_OBSERVED')
+        self.assertEqual(context['deployment']['status'],'NOT_RUN')
         self.assertFalse(context['capabilities']['topology_apply'])
         self.assertEqual(context['trusted_contract']['app_schema']['max_services'],5)
         self.assertIn('job:'+ci['id'],context['evidence_refs'])

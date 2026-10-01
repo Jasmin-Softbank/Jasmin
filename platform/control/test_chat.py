@@ -6,12 +6,14 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 import uuid
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from control.chat import ChatQueue, MODEL, digest, encoded, run_once, write_once, validate_request, proposal_review, system_prompt, PROMPT
+from control.chat import ChatQueue, MODEL, digest, encoded, run_once, write_once, validate_request, proposal_review, system_prompt, PROMPT, PINNED_FAILED_TURN_SHA256
 from control.database import engine_for, upgrade
 from control.state import ControlState, Principal
 from observability import OperationError
@@ -65,6 +67,126 @@ class ChatTest(unittest.TestCase):
         self.assertEqual(self.queue.snapshot()['messages'][0]['status'],'UNKNOWN')
         self.queue._run();self.assertEqual(self.calls,[])
         with self.assertRaises(OperationError):self.queue.submit('again','third')
+
+    def reconciliation_fixture(self):
+        record=self.queue.submit('question','failed-request')
+        def failed(argv,**kwargs):
+            request=json.loads(kwargs['input']);self.calls.append(request)
+            detail=OperationError('SDK_OUTCOME_UNKNOWN',component='control.chat',phase='invoke',outcome='UNKNOWN',side_effect='unknown',retry_policy='after_reconcile').as_dict()
+            detail['causes']=[{'type':'builtins.RuntimeError','frames':[{'file':'_run.py','function':'_raise_for_failed_turn','line':64}]}]
+            result={'message_id':request['message_id'],'request_sha256':request['request_sha256'],'outcome':'UNKNOWN','error':detail}
+            return subprocess.CompletedProcess(argv,1,json.dumps(result),'')
+        self.queue.transport=failed;self.dispatch(record)
+        identity=record['id'];request=json.loads((self.root/'chat'/(identity+'.dispatch.json')).read_text())
+        result=json.loads((self.root/'chat'/(identity+'.result.json')).read_text())
+        command=str(uuid.uuid4());instance='i-synthetic';source='a'*64
+        files={'binding':{'message_id':identity,'request_sha256':request['request_sha256'],'original_result_sha256':digest(result),'source_sha256':source},
+            'intent':{'phase':'DISPATCHED','command_id':command,'binding':{'source_sha256':source,'instance':instance,'request_sha256':request['request_sha256']}},
+            'invocation':{'CommandId':command,'InstanceId':instance,'Status':'Failed','ResponseCode':1,'StandardOutputContent':json.dumps(result),'ExecutionEndDateTime':'2026-10-01T12:03:05Z'},
+            'session':{'event_name':'agent.unknown','error':result['error'],'thread_id':str(uuid.uuid4()),'turn_id':str(uuid.uuid4())},
+            'sdk':{'version':'0.159.3','failed_turn_source_sha256':PINNED_FAILED_TURN_SHA256}}
+        directory=self.root/'chat'/'reconciliation'/identity;directory.parent.mkdir(mode=0o700,exist_ok=True);directory.mkdir(mode=0o700)
+        for name,value in files.items():
+            path=directory/(name+'.json');path.write_text(json.dumps(value));path.chmod(0o600)
+        return identity,directory
+
+    def test_explicit_terminal_reconciliation_preserves_original_and_never_repeats_call(self):
+        identity,directory=self.reconciliation_fixture()
+        original=(self.root/'chat'/(identity+'.result.json')).read_bytes()
+        self.assertEqual(self.queue.reconcile_terminal_failure(identity)['status'],'FAIL')
+        self.assertEqual(len(self.calls),1)
+        self.assertEqual((self.root/'chat'/(identity+'.result.json')).read_bytes(),original)
+        events=self.store.events(self.ctx,workspace_id='workspace')
+        self.assertEqual(events[-2]['outcome'],'UNKNOWN');self.assertEqual(events[-1]['event_name'],'control.chat.reconciled')
+        self.assertEqual(events[-1]['outcome'],'FAIL')
+        count=len(events);self.queue.reconcile_terminal_failure(identity)
+        self.assertEqual(len(self.store.events(self.ctx,workspace_id='workspace')),count)
+        self.queue.close();self.queue=self.make_queue();self.addCleanup(self.queue.close)
+        self.assertEqual(self.queue.records[identity]['status'],'FAIL')
+        self.assertEqual(self.queue.submit('new request','after-reconcile')['status'],'QUEUED')
+        self.assertEqual(len(self.calls),1)
+
+    def test_reconcile_rejects_nonadmin_different_message_or_command_and_missing_evidence(self):
+        identity,directory=self.reconciliation_fixture()
+        from control.state import Principal
+        ctx=self.queue.ctx;self.queue.ctx=Principal('operator','viewer',False)
+        with self.assertRaises(OperationError) as caught:self.queue.reconcile_terminal_failure(identity)
+        self.assertEqual(caught.exception.code,'CONTROL_ACCESS_DENIED');self.queue.ctx=ctx
+        for name,key,value in [('binding','message_id',str(uuid.uuid4())),('invocation','CommandId',str(uuid.uuid4()))]:
+            path=directory/(name+'.json');before=path.read_text();data=json.loads(before);data[key]=value;path.write_text(json.dumps(data))
+            with self.assertRaises(OperationError) as caught:self.queue.reconcile_terminal_failure(identity)
+            self.assertEqual(caught.exception.code,'STATE_EVIDENCE_MISMATCH');path.write_text(before)
+        (directory/'sdk.json').chmod(0o644)
+        with self.assertRaises(OperationError):self.queue.reconcile_terminal_failure(identity)
+        self.assertEqual(self.queue.records[identity]['status'],'UNKNOWN');self.assertEqual(len(self.calls),1)
+
+    def success_reconciliation_fixture(self):
+        record=self.queue.submit('Interrupted request','interrupted')
+        with patch.object(self.queue,'transport',side_effect=subprocess.TimeoutExpired(['synthetic'],1)):
+            self.dispatch(record)
+        identity=record['id'];request=json.loads((self.root/'chat'/(identity+'.dispatch.json')).read_text())
+        meta={k:str(uuid.uuid4()) for k in ('session_id','thread_id','turn_id')}
+        meta.update(provider='codex',model=MODEL)
+        result={'message_id':identity,'request_sha256':request['request_sha256'],'outcome':'PASS',
+                'reply':'Original remote response, never a second model request.','meta':meta,'error':None}
+        command=str(uuid.uuid4());source='b'*64
+        files={'binding':{'message_id':identity,'request_sha256':request['request_sha256'],'original_result_sha256':None,'source_sha256':source},
+            'intent':{'phase':'DISPATCHED','command_id':command,'binding':{'source_sha256':source,'instance':'i-test','request_sha256':request['request_sha256']}},
+            'invocation':{'CommandId':command,'InstanceId':'i-test','Status':'Success','ResponseCode':0,'StandardOutputContent':json.dumps(result),'ExecutionEndDateTime':'2026-10-01T12:37:00Z'},
+            'remote':{'request_sha256':digest(request),'result_sha256':digest(result),'sdk_version':'0.159.3',
+                      'session':{'event_name':'agent.completed',**meta}}}
+        directory=self.root/'chat'/'reconciliation'/identity;directory.parent.mkdir(mode=0o700,exist_ok=True);directory.mkdir(mode=0o700)
+        for name,value in files.items():
+            path=directory/(name+'.json');path.write_text(json.dumps(value));path.chmod(0o600)
+        return identity,directory,result
+
+    def test_success_reconciliation_restores_missing_response_append_only_and_survives_restart(self):
+        identity,directory,result=self.success_reconciliation_fixture()
+        self.assertEqual(self.queue.snapshot()['reconciliation_ids'],[identity])
+        original_events=self.store.events(self.ctx,workspace_id='workspace')
+        with patch.object(self.queue,'start'):
+            self.assertEqual(self.queue.reconcile(identity)['status'],'PASS')
+        self.assertFalse((self.root/'chat'/(identity+'.result.json')).exists())
+        self.assertEqual(self.queue.snapshot()['messages'][-1]['text'],result['reply'])
+        events=self.store.events(self.ctx,workspace_id='workspace')
+        self.assertEqual(events[:-1],original_events);self.assertEqual(events[-1]['event_name'],'control.chat.reconciled')
+        self.queue.reconcile(identity);self.assertEqual(len(self.store.events(self.ctx,workspace_id='workspace')),len(events))
+        self.queue.close();self.queue=self.make_queue();self.addCleanup(self.queue.close)
+        self.assertEqual(self.queue.snapshot()['reconciliation_ids'],[])
+        self.assertEqual(self.queue.snapshot()['messages'][-1]['text'],result['reply'])
+        record=self.queue.submit('Follow up','following');self.dispatch(record)
+        self.assertEqual(len(self.calls),1)
+        self.assertEqual(self.calls[0]['messages'][-2]['content'],result['reply'])
+
+    def test_success_reconciliation_requires_exact_remote_result_and_turn_identity(self):
+        identity,directory,result=self.success_reconciliation_fixture()
+        for field in ('result_sha256','request_sha256','session'):
+            path=directory/'remote.json';original=path.read_text();changed=json.loads(original)
+            changed[field]='0'*64 if field!='session' else {**changed[field],'turn_id':str(uuid.uuid4())}
+            path.write_text(json.dumps(changed))
+            with self.assertRaises(OperationError) as caught:self.queue.reconcile(identity)
+            self.assertEqual(caught.exception.code,'STATE_EVIDENCE_MISMATCH');path.write_text(original)
+        self.assertEqual(self.queue.records[identity]['status'],'UNKNOWN')
+        self.assertFalse((self.root/'chat'/(identity+'.reconciliation.json')).exists());self.assertEqual(self.calls,[])
+
+    def test_close_drains_started_call_and_keeps_queued_work_without_new_dispatch(self):
+        entered=threading.Event();finish=threading.Event()
+        def transport(argv,**kwargs):
+            entered.set();self.assertTrue(finish.wait(5))
+            if kwargs.get('on_tick'): kwargs['on_tick']()
+            return self.transport(argv,**kwargs)
+        self.queue.transport=transport
+        first=self.queue.submit('Active','active');second=self.queue.submit('Queued','queued');self.queue.start()
+        self.assertTrue(entered.wait(2));closer=threading.Thread(target=self.queue.close);closer.start()
+        self.assertTrue(self.queue.stop.wait(2))
+        with self.assertRaises(OperationError) as caught:self.queue.submit('During shutdown','late')
+        self.assertEqual(caught.exception.phase,'chat.draining');self.assertTrue(closer.is_alive())
+        finish.set();closer.join(5);self.assertFalse(closer.is_alive())
+        self.assertEqual(self.queue.records[first['id']]['status'],'PASS')
+        self.assertEqual(self.queue.records[second['id']]['status'],'QUEUED');self.assertEqual(len(self.calls),1)
+        self.queue=self.make_queue();self.addCleanup(self.queue.close)
+        self.assertEqual(self.queue.records[first['id']]['status'],'PASS')
+        self.assertEqual(self.queue.records[second['id']]['status'],'QUEUED')
 
     def test_history_and_context_are_fixed_at_dispatch_after_previous_reply(self):
         first=self.queue.submit('First question','first');second=self.queue.submit('Follow up','second')
@@ -149,6 +271,8 @@ class ChatTest(unittest.TestCase):
         draft=self.topology();context=self.grounded_context();review=proposal_review(draft,context)
         self.assertFalse(review['apply_supported']);self.assertEqual(review['status'],'REVIEW_REQUIRED')
         self.assertEqual(review['conflicts'],[]);self.assertEqual(review['contract_sha256'],digest(context['trusted_contract']))
+        described=copy.deepcopy(draft);described['intent']='describe'
+        self.assertFalse(proposal_review(described,context)['apply_supported'])
         wrong=copy.deepcopy(draft);wrong['nodes'][0]['managed_by']='terraform'
         self.assertEqual(proposal_review(wrong,context)['conflicts'][0]['reason'],'ownership_not_supported')
         invalid=[]
@@ -156,11 +280,25 @@ class ChatTest(unittest.TestCase):
         item=copy.deepcopy(draft);item['nodes'][1]['id']='web';invalid.append(item)
         item=copy.deepcopy(draft);item['nodes'][0]['label']='<svg onload=alert(1)>';invalid.append(item)
         item=copy.deepcopy(draft);item['status']='APPLIED';invalid.append(item)
+        item=copy.deepcopy(draft);item['intent']='execute';invalid.append(item)
         item=copy.deepcopy(draft);item['evidence_refs']=['job:invented'];invalid.append(item)
         item=copy.deepcopy(draft);item['nodes']*=13;invalid.append(item)
         for value in invalid:
             with self.subTest(value=value),self.assertRaises(OperationError) as caught:proposal_review(value,context)
             self.assertEqual(caught.exception.code,'SDK_OUTPUT_INVALID')
+
+    def test_remote_terminal_failure_preserves_safe_ids_without_blocking_as_unknown(self):
+        request=self.request()
+        def failed(cfg,system,task,schema,workspace,run,deny,emit):
+            detail=OperationError('SDK_EXECUTION_FAILED',component='runner',phase='invoke',outcome='FAIL',side_effect='completed')
+            emit('session.finished',sdk_status='failed',thread_id='synthetic-thread',turn_id='synthetic-turn',
+                 sdk_failure={'category':'invalid_output_schema','message':'The provider rejected the structured output schema.','message_sha256':'a'*64,'codes':['other']},error=detail)
+            raise detail
+        with patch('control.chat.sys.platform','linux'),patch('control.chat.run_codex',side_effect=failed):
+            result=run_once(request,self.root/'remote')
+        self.assertEqual(result['outcome'],'FAIL');self.assertEqual(result['meta']['sdk_status'],'failed')
+        self.assertEqual(result['meta']['thread_id'],'synthetic-thread')
+        self.assertEqual(result['meta']['sdk_failure']['category'],'invalid_output_schema')
 
     def test_remote_prompt_file_and_draft_are_bound_to_response_receipt(self):
         request=self.request();request['context']=self.grounded_context()

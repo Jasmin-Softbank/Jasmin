@@ -1,4 +1,7 @@
-"""Local contract tests; transport doubles are not live publication evidence."""
+"""Local contract tests; GHCR fixtures explicitly assume public/no-pull-secret access.
+
+Transport doubles are not live GHCR authentication or publication evidence.
+"""
 import json
 from pathlib import Path
 import sys
@@ -20,7 +23,7 @@ class ReleaseTest(unittest.TestCase):
         self.bundle.mkdir()
         self.image_id = 'sha256:' + 'a' * 64
         self.local_ref = 'railshot-gate/demo-web:test'
-        self.images = {'web': 'registry.example/project/demo-web@sha256:' + 'b' * 64}
+        self.images = {'web': 'ghcr.io/example/demo-web@sha256:' + 'b' * 64}
         (self.bundle / 'jasmin.yaml').write_text('apiVersion: jasmin/v0\napp: demo\nservices:\n'
             '  - name: web\n    build: {dockerfile: Dockerfile}\n    port: 3000\n    route: /\n')
         self.verdict = {'ok': True, 'release_eligible': True, 'status': 'PASS',
@@ -31,7 +34,8 @@ class ReleaseTest(unittest.TestCase):
         self.write_manifest()
         self.target = {'workspace_id': str(uuid.uuid4()), 'generation': 1, 'tenant': 'demo',
             'cluster': 'gcp', 'repo_url': 'https://github.com/example/gitops',
-            'registry_prefix': 'registry.example/project/demo', 'tag': 'test1',
+            'registry_prefix': 'ghcr.io/example/demo', 'tag': 'test1',
+            'registry_visibility': 'public',
             'domain': '127-0-0-1.sslip.io', 'suffix': 'abcdef', 'storage_class': 'local-path',
             'gitops_revision': 'd' * 40, 'https_gateway': 'railshot-demo-demo'}
         self.plan = release.prepare_release(self.bundle, self.target)
@@ -65,6 +69,64 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(self.plan, release.prepare_release(self.bundle, self.target))
         changed = {**self.target, 'domain': 'example.com'}
         self.assertNotEqual(self.plan['plan_hash'], release.prepare_release(self.bundle, changed)['plan_hash'])
+
+    def test_product_registry_target_matches_workflow_ghcr_namespace_rules(self):
+        for prefix in ('ghcr.io/owner', 'ghcr.io/owner/project/nested',
+                       'ghcr.io/owner-name/project_name.v1', 'ghcr.io/' + 'a' * 212):
+            with self.subTest(prefix=prefix):
+                self.assertEqual(release.checked_target({**self.target, 'registry_prefix': prefix})['registry_prefix'], prefix)
+        for prefix in ('', 'registry.example/project/demo', 'asia-northeast3-docker.pkg.dev/project/repo/app',
+                       'owner/project', 'https://ghcr.io/owner', 'ghcr.io/owner/', 'ghcr.io/Owner',
+                       'user:password@ghcr.io/owner', '--help', 'ghcr.io/owner; false',
+                       'ghcr.io/owner\nother/project', 'ghcr.io/../project', 'ghcr.io:443/owner',
+                       'ghcr.io/owner//app', 'ghcr.io/owner/app__name', 'ghcr.io/' + 'a' * 213):
+            with self.subTest(prefix=prefix), self.assertRaises(release.OperationError) as caught:
+                release.checked_target({**self.target, 'registry_prefix': prefix})
+            self.assertEqual(caught.exception.code, 'CD_CONFIG_INVALID')
+
+    def test_pull_secret_name_is_trusted_plan_bound_and_installer_absence_blocks_publication(self):
+        target = {**self.target, 'image_pull_secret_name': 'railshot-pull'}
+        with patch.object(release, 'render', wraps=release.render) as render:
+            plan = release.prepare_release(self.bundle, target)
+        self.assertEqual(render.call_args.kwargs['image_pull_secret_name'], 'railshot-pull')
+        self.assertNotEqual(self.plan['plan_hash'], plan['plan_hash'])
+        self.assertEqual(plan['prerequisites'], [{'kind': 'image_pull_secret', 'namespace': 't-demo-demo',
+            'name': 'railshot-pull', 'status': 'BLOCKED', 'reason': 'trusted_secret_installer_not_connected'}])
+        operation = {**self.operation, 'plan_hash': plan['plan_hash']}
+        with patch.object(release, 'GitHubWriter') as writer, patch.object(release.bundle, 'publish') as publish:
+            with self.assertRaises(release.OperationError) as caught:
+                release.execute_release(plan, self.bundle, operation, work_dir=self.root / 'private-run',
+                                        observer=Mock(), runtime_observer=self.runtime)
+        self.assertEqual(caught.exception.code, 'CONTROL_NOT_READY')
+        self.assertEqual(caught.exception.phase, 'registry.pull_secret.prerequisite')
+        self.assertEqual(caught.exception.side_effect, 'none')
+        writer.assert_not_called(); publish.assert_not_called()
+        self.assertFalse((self.root / 'private-run').exists())
+
+    def test_pull_secret_target_rejects_invalid_names_credentials_and_untrusted_ready_flags(self):
+        for name in ('', 'Pull', 'name.with.dot', 'x' * 64, '../pull', {'name': 'pull'}):
+            with self.subTest(name=name), self.assertRaises(release.OperationError):
+                release.checked_target({**self.target, 'image_pull_secret_name': name})
+        for key, value in [('registry_password', 'synthetic-secret'), ('pull_secret_ready', True)]:
+            with self.subTest(key=key), self.assertRaises(release.OperationError):
+                release.checked_target({**self.target, key: value})
+        self.assertIsNone(release.checked_target(self.target)['image_pull_secret_name'])
+        self.assertEqual(self.plan['prerequisites'], [])
+
+    def test_private_is_default_and_missing_pull_name_blocks_before_external_effects(self):
+        target = {k: v for k, v in self.target.items() if k != 'registry_visibility'}
+        plan = release.prepare_release(self.bundle, target)
+        self.assertEqual(plan['target']['registry_visibility'], 'private')
+        self.assertEqual(plan['prerequisites'][0]['reason'], 'registry_pull_secret_not_registered')
+        self.assertNotEqual(plan['plan_hash'], self.plan['plan_hash'])
+        with patch.object(release, 'GitHubWriter') as writer, patch.object(release.bundle, 'publish') as publish:
+            with self.assertRaises(release.OperationError) as caught:
+                release.execute_release(plan, self.bundle, {**self.operation, 'plan_hash': plan['plan_hash']},
+                    work_dir=self.root / 'default-private', observer=Mock(), runtime_observer=self.runtime)
+        self.assertEqual(caught.exception.code, 'CONTROL_NOT_READY')
+        writer.assert_not_called(); publish.assert_not_called()
+        with self.assertRaises(release.OperationError):
+            release.checked_target({**self.target, 'registry_visibility': 'assumed-public'})
 
     def test_approved_binding_cannot_be_changed(self):
         for key, value in [('generation', 2), ('tenant_id', 'other'), ('plan_hash', '0' * 64), ('operation', 'vm.start')]:
