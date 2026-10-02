@@ -33,7 +33,7 @@ def endpoints(spec, arch):
     key = {'docker.io': 'docker_hub', 'ghcr.io': 'ghcr', 'quay.io': 'quay', 'registry.k8s.io': 'registry_k8s'}.get(host, 'workload_registry')
     if key == 'workload_registry':
         urls[key] = f'https://{host}/v2/'
-    required = {'k3s_source', 'github', 'cilium_cli_source', 'cilium_chart', 'quay', 'docker_hub', key}
+    required = {'k3s_source', 'github', 'cilium_cli_source', 'cilium_chart', 'quay', 'registry_k8s', 'docker_hub', key}
     if spec.exposure.type == 'cloudflare-tunnel':
         # TCP/TLS 7844 only; not a QUIC test or authenticated connector check.
         urls['cloudflare_tunnel'] = 'https://region1.v2.argotunnel.com:7844/'

@@ -36,7 +36,7 @@ Partial Network(일부 통신만 되는 환경)에서는 필요한 항목과 선
 | `github` | 승인된 K3s release binary(실행 파일) 주소와 redirect(다른 주소로 전달되는 경로)를 확인합니다. |
 | `cilium_cli_source` / `cilium_chart` | 승인된 Cilium CLI와 chart(설치 정의) 주소입니다. |
 | `quay` / `docker_hub` | Cilium·K3s 이미지와 검사 이미지에 필요한 registry의 `/v2/` 응답입니다. |
-| `registry_k8s` / `ghcr` | 기본 진단 대상이며 해당 registry의 workload를 쓰면 필수 항목입니다. |
+| `registry_k8s` / `ghcr` | registry.k8s.io는 후속 요구사항에 따라 필수 경로로 검사합니다. GHCR은 해당 workload를 쓰면 필수 항목입니다. |
 | `workload_registry` | 다른 workload registry를 사용하는 경우 HTTPS 접속을 확인합니다. |
 | `cloudflare_tunnel` | 요청 시 edge의 TCP/TLS 7844 경로를 검사합니다. QUIC(UDP 기반 연결)·토큰·실제 connector 연결 성공을 의미하지 않습니다. |
 | `wireguard_udp_51820` | 현재 `null`입니다. 인증된 WireGuard(암호화된 노드 간 통신) peer/key 계약이 없으며 UDP 패킷 송신만으로 성공을 판단하지 않습니다. |
@@ -174,6 +174,70 @@ sudo python3 deployment/scripts/tests/test_airgap_vm.py \
   --results /var/tmp/railshot-airgap-results --disposable-node
 ```
 
-Online·bundle 재사용·registry 실패와 bundle 유무·인터넷 차단 후 최초 설치·손상/checksum/image 누락·반복 offline 배포·cleanup/redeploy·offline update·네트워크 복구·Cloudflare 불가·preflight timeout(대기 제한) 등 14개 시나리오를 검사합니다. 원본 JSON·stderr·차단 규칙·차단 증거·PASS/FAIL/SKIP 수를 보존하며, 앞 단계 실패로 실행하지 않은 항목은 SKIP으로 기록합니다.
+Online·bundle 재사용·registry 실패와 bundle 유무·인터넷 차단 후 최초 설치·손상/checksum/image 누락·반복 offline 배포·cleanup/redeploy·offline update·네트워크 복구·Cloudflare 불가·preflight timeout(대기 제한) 및 CPU 구조 불일치·동일 digest 재import 방지 등 16개 시나리오를 검사합니다. 원본 JSON·stderr·차단 규칙·차단 증거·PASS/FAIL/SKIP 수를 보존하며, 앞 단계 실패로 실행하지 않은 항목은 SKIP으로 기록합니다.
 
 실제 수행 결과와 아직 검증하지 않은 내용은 [검증 기록](../scripts/tests/results/AIRGAP-VALIDATION-2026-10-02.md)에 정리합니다. WireGuard 인증 통신, QUIC, Cloudflare token/domain/auth(접속 자격정보) 및 실제 CSP 환경은 별도 계약과 검증이 필요합니다.
+
+## Artifact storage와 GitHub Release
+
+해커톤의 앱 이미지 배포 기준은 GHCR(깃허브 컨테이너 이미지 저장소), offline bundle 배포 기준은 GitHub Release asset(버전에 연결한 첨부 파일)입니다. K3s·Cilium 등 공식 시스템 이미지는 공식 registry를 사용하며, 앱 이미지의 GHCR 빌드·push는 CI(빌드·검사 자동화) 담당 영역입니다. 이 Runtime은 GHCR workload 입력을 받을 수 있으나 **현재 실제 Linux 앱 검사는 Docker Hub nginx로 수행했습니다.** GHCR의 접속 검사를 이미지 다운로드·앱 배포 검증으로 표현하지 않습니다.
+
+큰 이미지 archive와 생성 bundle·`airgap/dist/`·`airgap/downloads/`·`.oci` 파일은 Git에서 제외합니다. Git에는 script·README·manifest·checksum·artifact metadata(배포 파일 정보)만 넣습니다. 수 GB 크기나 잦은 갱신이 필요하면 향후 S3/GCS 같은 object storage(파일 저장 서비스)로 전달 계층을 바꿀 수 있습니다. 현재 Runtime은 저장소 API에 직접 의존하지 않습니다.
+
+현재 로컬 arm64 Release 파일은 **747,700,166 bytes(약 713.1 MiB)**입니다. 원래 bundle 디렉터리는 약 803 MiB입니다. amd64 파일 이름·CPU 구조 선택 경로는 구현했지만 **amd64 bundle/Release asset을 실제 생성하거나 설치하지 않았습니다.**
+
+```text
+airgap-bundle-v0.1.0                     # Release tag 예시입니다.
+├── railshot-airgap-arm64-v0.1.0.tar.zst
+├── bundle-manifest-arm64.json
+├── artifact-metadata-arm64.json
+├── checksums-arm64.txt
+└── amd64 파일 4개                        # 실제 amd64 준비·검증 후 추가합니다.
+```
+
+CPU 구조별 manifest/checksum 이름을 달리하여 같은 Release에 두 구조를 올릴 때 충돌하지 않게 했습니다. 실제 arm64 [metadata](metadata/v0.1.0/artifact-metadata-arm64.json), [manifest](metadata/v0.1.0/bundle-manifest-arm64.json), [checksum](metadata/v0.1.0/checksums-arm64.txt)을 Git에 보존합니다. Release version(`v0.1.0`)은 bundle version(`2026-10-02.1`) 및 Runtime component version과 별도입니다.
+
+### Pack(로컬 Release 파일 생성)
+
+검증된 bundle과 `zstd` 압축 명령이 필요합니다. 같은 출력 경로의 동일 bundle은 재사용하며, 다른 bundle로 덮어쓰지 않습니다. manifest에 선언한 파일만 압축합니다.
+
+```bash
+./deployment/airgap/release-pack.sh \
+  --bundle /var/lib/railshot-deployment/bundle \
+  --version v0.1.0 --output deployment/airgap/dist/v0.1.0/arm64 \
+  --manifest-sha256 "$TRUSTED_MANIFEST_SHA256"
+```
+
+### Upload(명시적 draft 업로드)
+
+GitHub CLI `gh`가 필요합니다. 도구는 인증과 해당 repository의 push 권한을 확인합니다. 기존 **draft(미공개 초안) Release만** 사용하고, 파일 이름 충돌 시 덮어쓰지 않습니다. `--create-draft`를 직접 지정한 경우에만 초안을 만들며 정확한 대상 commit SHA와 설명 파일이 필요합니다. 이 도구는 Release를 publish(공개 확정)하지 않습니다.
+
+```bash
+./deployment/airgap/release-upload.sh \
+  --repo Jasmin-Softbank/Railshot --version v0.1.0 --architecture arm64 \
+  --directory deployment/airgap/dist/v0.1.0/arm64
+
+# 승인된 commit과 문서를 준비한 후 초안 생성을 명시할 수 있습니다.
+./deployment/airgap/release-upload.sh \
+  --repo Jasmin-Softbank/Railshot --version v0.1.0 --architecture arm64 \
+  --directory deployment/airgap/dist/v0.1.0/arm64 --create-draft \
+  --target "$APPROVED_COMMIT_SHA" --notes-file release-notes.md
+```
+
+업로드가 중간에 실패하면 원격 draft 일부 파일이 남을 수 있습니다. 도구는 원격 파일을 자동 삭제하거나 덮어쓰지 않습니다. 원격 상태를 확인하고 새 버전 또는 승인된 수동 복구 절차를 사용해야 합니다. [공식 upload 명령](https://cli.github.com/manual/gh_release_upload)을 사용합니다.
+
+### Download(지정 버전 다운로드·검증)
+
+최초 Onboarding 때 신뢰한 archive SHA256과 manifest SHA256을 별도로 전달합니다. 다운로드한 checksum metadata 자체만 신뢰하지 않습니다. `latest`를 사용하지 않고 정확한 Release version을 받습니다. 새 디렉터리에서 archive checksum·안전한 경로·bundle checksum/digest·CPU 구조를 검사한 뒤 실행 경로로 게시합니다.
+
+```bash
+./deployment/airgap/release-download.sh \
+  --repo Jasmin-Softbank/Railshot --version v0.1.0 --architecture arm64 \
+  --output /var/lib/railshot-deployment/bundle \
+  --archive-sha256 "$TRUSTED_ARCHIVE_SHA256" \
+  --manifest-sha256 "$TRUSTED_MANIFEST_SHA256"
+```
+
+이는 연결된 Onboarding 단계의 도구이며 offline deploy 중에는 호출하지 않습니다. [공식 download 명령](https://cli.github.com/manual/gh_release_download)을 사용합니다. 이번에는 인증·권한 확인, 실제 로컬 파일 생성과 Linux에서 압축 해제·bundle 검증을 수행했습니다. **GitHub Release 실제 생성·업로드·원격 다운로드는 수행하지 않았습니다.** 해당 원격 호출은 자동 테스트에서 mock(모의 응답)으로 검사했습니다.
+
+후속 Release 분리와 16개 Linux 시나리오의 실제 결과는 [최신 Release 검증 기록](../scripts/tests/results/RELEASE-VALIDATION-2026-10-02.md)에 정리했습니다.

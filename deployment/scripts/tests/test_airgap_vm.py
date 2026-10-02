@@ -220,6 +220,25 @@ def main():
                 finally:
                     stop.set();server.shutdown()
         case('14-preflight-timeout',timeouts)
+        def architecture_mismatch():
+            with tempfile.TemporaryDirectory(prefix='railshot-wrong-arch-') as temp:
+                bad=Path(temp)/'bundle'; shutil.copytree(args.bundle,bad,copy_function=os.link)
+                content=copy.deepcopy(manifest)
+                content['platform']='linux/amd64' if content['platform']=='linux/arm64' else 'linux/arm64'
+                text=json.dumps(content,indent=2)+'\n'
+                for name,value in [('bundle-manifest.json',text),('manifest.sha256',hashlib.sha256(text.encode()).hexdigest()+'\n')]:
+                    path=bad/name;path.unlink();path.write_text(value)
+                request=offline();request['runtime']['bundle_path']=str(bad);request['runtime'].pop('bundle_sha256')
+                runtime('15-architecture-mismatch','deploy',request,success=False,code='BUNDLE_PLATFORM_MISMATCH')
+        case('15-architecture-mismatch',architecture_mismatch)
+        def no_duplicate_import():
+            before=command(['/usr/local/bin/k3s','ctr','-n','k8s.io','images','list','-q'])
+            assert before.returncode==0,before.stderr
+            r=runtime('16-no-duplicate-import','deploy',offline())
+            assert r['preload']['imported_archives']==[] and r['preload']['digest_verified'],r['preload']
+            after=command(['/usr/local/bin/k3s','ctr','-n','k8s.io','images','list','-q'])
+            assert after.returncode==0 and sorted(before.stdout.splitlines())==sorted(after.stdout.splitlines()),after.stderr
+        case('16-no-duplicate-import',no_duplicate_import)
     except Exception as exc:
         errors.append({'stage':current_case,'message':str(exc)[:4000]})
     finally:
@@ -231,9 +250,9 @@ def main():
             try: runtime('final-cleanup','cleanup',data,('--all','--disposable-node'))
             except Exception as exc: errors.append({'stage':'final-cleanup','message':str(exc)[:2000]})
     done={r['test'] for r in rows}
-    expected=['01-online-clean','02-online-with-bundle','03-registry-fallback','04-no-bundle','05-offline-clean','06-corrupt-bundle','07-wrong-checksum','08-missing-image','09-offline-repeat','10-offline-cleanup-redeploy','11-offline-update','12-network-restored','13-cloudflare-unavailable','14-preflight-timeout']
+    expected=['01-online-clean','02-online-with-bundle','03-registry-fallback','04-no-bundle','05-offline-clean','06-corrupt-bundle','07-wrong-checksum','08-missing-image','09-offline-repeat','10-offline-cleanup-redeploy','11-offline-update','12-network-restored','13-cloudflare-unavailable','14-preflight-timeout','15-architecture-mismatch','16-no-duplicate-import']
     rows.extend({'test':name,'status':'SKIP','reason':'prior scenario failed'} for name in expected if name not in done)
-    result={'status':'passed' if not errors and len(done)==14 else 'failed','results':rows,'errors':errors,
+    result={'status':'passed' if not errors and len(done)==16 else 'failed','results':rows,'errors':errors,
             'counts':{s:sum(r['status']==s for r in rows) for s in ('PASS','FAIL','SKIP')},
             'scope':'Disposable Linux VM only; nft restored; no host/CSP firewall changes',
             'not_verified':['amd64','real AWS/GCP/OpenStack networks','authenticated WireGuard','QUIC/Cloudflare tunnel provisioning','private registry credentials']}

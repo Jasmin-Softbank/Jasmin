@@ -15,6 +15,7 @@
 - [자동 테스트](#자동-테스트)
 - [별도 VM에서 Provider 모의 통합 검사](#별도-vm에서-provider-모의-통합-검사)
 - [네트워크 검사와 Online/Offline 배포](#네트워크-검사와-onlineoffline-배포)
+- [Release artifact 배포](#release-artifact-배포)
 - [Provider 및 Ansible 연결](#provider-및-ansible-연결)
 - [확정이 필요한 계약과 후속 모듈](#확정이-필요한-계약과-후속-모듈)
 
@@ -363,6 +364,12 @@ DNS(이름 해석)·HTTPS 443·버전 고정 K3s/GitHub/Cilium chart 주소·qua
 
 이는 Internet-independent(외부 인터넷 없이 내부망/로컬 파일로 배포 가능)입니다. 중앙과 노드 간 통신까지 없는 Network-independent 원격 배포는 주장하지 않습니다. Bundle 준비·digest·preload·업데이트·제거·실제 시험 범위는 [airgap/README.md](airgap/README.md)와 [실제 검증 기록](scripts/tests/results/AIRGAP-VALIDATION-2026-10-02.md)에 설명합니다.
 
+## Release artifact 배포
+
+Online 앱 이미지의 기준 저장소는 GHCR(깃허브 이미지 저장소), offline bundle은 GitHub Release asset(버전별 첨부 파일)입니다. 공식 시스템 이미지는 공식 registry에서 준비합니다. 앱 빌드·GHCR push는 CI 담당 영역이며 이 Runtime에서 구현하지 않습니다.
+
+`airgap/release-pack.sh`로 로컬 파일을 만들고, 선택 `release-upload.sh`·`release-download.sh`로 정확한 버전을 전달합니다. 큰 archive·생성 bundle·dist는 Git에서 제외합니다. CPU 구조별 manifest·checksum·metadata만 Git에 보존합니다. 이번 arm64 archive는 약 713 MiB이며 amd64는 아직 실제 생성·검증하지 않았습니다. GitHub 인증과 쓰기 권한은 확인했지만 실제 Release 업로드·원격 다운로드는 수행하지 않았습니다. 자세한 명령과 검증 범위는 [Airgap Release 설명](airgap/README.md#artifact-storage와-github-release)을 확인하시면 됩니다.
+
 ## Provider 및 Ansible 연결
 
 | 단계 | 담당과 인계 내용 |
@@ -386,3 +393,5 @@ AWS/GCP는 NodePort까지의 보안 그룹·방화벽·라우팅을 해당 담�
 - Airgap preload(인터넷 없는 환경의 이미지 사전 적재)는 이번에 추가했습니다. Argo CD, cloudflared 자동 설치, NFD(노드 기능 탐지), CNPG, Sealed Secrets, Gateway API, 복잡한 GitOps는 구현하지 않습니다.
 - 향후 모듈은 `cilium` 준비 다음과 앱 배포 전/후 등 승인된 단계에 연결합니다. 지금은 빈 확장 위치를 README로 보존하며 임의 명령 실행이나 plugin 로딩 기능은 추가하지 않습니다.
 - Terraform provider·자원 provisioning·CI/GitHub Actions·MCP server·Dashboard·Patroni·cross-cloud HA·멀티 클라우드 DB 복제는 담당 범위에 포함하지 않습니다.
+
+후속 Release 분리와 16개 Linux 시나리오의 실제 결과는 [최신 Release 검증 기록](scripts/tests/results/RELEASE-VALIDATION-2026-10-02.md)에 정리했습니다.
