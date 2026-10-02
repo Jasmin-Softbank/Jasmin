@@ -1,2 +1,8 @@
 __pycache__/
 *.pyc
+# Binary/image bundles live outside Git; commit only manifests and verification evidence.
+airgap/bundles/
+*.tar
+*.tar.gz
+*.tar.zst
+*.tgz
